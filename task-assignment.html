@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Assignment - Mobile Cover Inventory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="index.html">
+                <i class="fas fa-mobile-alt me-2"></i>
+                Mobile Cover Inventory
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.html">
+                            <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="products.html">
+                            <i class="fas fa-boxes me-1"></i>Products
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="add-product.html">
+                            <i class="fas fa-plus me-1"></i>Add Product
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="sales.html">
+                            <i class="fas fa-shopping-cart me-1"></i>Sales
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="reports.html">
+                            <i class="fas fa-chart-bar me-1"></i>Reports
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="employees.html">
+                            <i class="fas fa-users me-1"></i>Employees
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="task-assignment.html">
+                            <i class="fas fa-tasks me-1"></i>Task Assignment
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- Page Header -->
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h1 class="page-title">
+                            <i class="fas fa-tasks me-2"></i>Task Assignment
+                        </h1>
+                        <p class="text-muted">Assign products to employees for platform listings</p>
+                    </div>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#assignTaskModal">
+                        <i class="fas fa-plus me-2"></i>Assign New Task
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="row mb-4">
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card border-left-primary shadow h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                    Total Tasks
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800" id="total-tasks">0</div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-clipboard-list fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card border-left-warning shadow h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                    Pending Tasks
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800" id="pending-tasks">0</div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-clock fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card border-left-info shadow h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                    In Progress
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800" id="in-progress-tasks">0</div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-spinner fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card border-left-success shadow h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                    Completed
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800" id="completed-tasks">0</div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters and Search -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control" id="searchTasks" placeholder="Search tasks...">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="employeeFilter">
+                    <option value="">All Employees</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="statusFilter">
+                    <option value="">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="platformFilter">
+                    <option value="">All Platforms</option>
+                    <option value="amazon">Amazon</option>
+                    <option value="flipkart">Flipkart</option>
+                    <option value="meesho">Meesho</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="priorityFilter">
+                    <option value="">All Priority</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Task List -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">
+                            <i class="fas fa-list me-2"></i>Task Assignment List
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover" id="tasksTable">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Employee</th>
+                                        <th>Product</th>
+                                        <th>Platform</th>
+                                        <th>Color</th>
+                                        <th>Priority</th>
+                                        <th>Status</th>
+                                        <th>Due Date</th>
+                                        <th>Progress</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tasksTableBody">
+                                    <tr>
+                                        <td colspan="9" class="text-center">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Assign Task Modal -->
+    <div class="modal fade" id="assignTaskModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-plus me-2"></i>Assign New Task
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="assignTaskForm">
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="taskEmployee" class="form-label">Employee *</label>
+                                    <select class="form-select" id="taskEmployee" required>
+                                        <option value="">Select Employee</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="taskProduct" class="form-label">Product</label>
+                                    <select class="form-select" id="taskProduct">
+                                        <option value="">Select Product (Optional)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="mb-3">
+                                    <label class="form-label">Platforms *</label>
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input platform-checkbox" type="checkbox" value="amazon" id="platformAmazon">
+                                                        <label class="form-check-label" for="platformAmazon">
+                                                            <i class="fab fa-amazon me-1 text-warning"></i>Amazon
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input platform-checkbox" type="checkbox" value="flipkart" id="platformFlipkart">
+                                                        <label class="form-check-label" for="platformFlipkart">
+                                                            <i class="fas fa-shopping-cart me-1 text-primary"></i>Flipkart
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input platform-checkbox" type="checkbox" value="meesho" id="platformMeesho">
+                                                        <label class="form-check-label" for="platformMeesho">
+                                                            <i class="fas fa-store me-1 text-danger"></i>Meesho
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input platform-checkbox" type="checkbox" value="ebay" id="platformEbay">
+                                                        <label class="form-check-label" for="platformEbay">
+                                                            <i class="fas fa-gavel me-1 text-info"></i>eBay
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input platform-checkbox" type="checkbox" value="shopify" id="platformShopify">
+                                                        <label class="form-check-label" for="platformShopify">
+                                                            <i class="fab fa-shopify me-1 text-success"></i>Shopify
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input platform-checkbox" type="checkbox" value="walmart" id="platformWalmart">
+                                                        <label class="form-check-label" for="platformWalmart">
+                                                            <i class="fas fa-store me-1 text-primary"></i>Walmart
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input platform-checkbox" type="checkbox" value="custom" id="platformCustom">
+                                                        <label class="form-check-label" for="platformCustom">
+                                                            <i class="fas fa-plus me-1 text-secondary"></i>Custom Platform
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Custom Platform Input -->
+                                            <div class="mt-3" id="customPlatformSection" style="display: none;">
+                                                <label for="customPlatformName" class="form-label">Custom Platform Name</label>
+                                                <div class="input-group">
+                                                    <input type="text" class="form-control" id="customPlatformName" placeholder="e.g., MyStore, Local Marketplace">
+                                                    <button class="btn btn-outline-secondary" type="button" id="addCustomPlatform">
+                                                        <i class="fas fa-plus"></i>
+                                                    </button>
+                                                </div>
+                                                <div id="customPlatformsList" class="mt-2">
+                                                    <small class="text-muted">Added custom platforms will appear here</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="taskColor" class="form-label">Color/Model</label>
+                                    <input type="text" class="form-control" id="taskColor" placeholder="e.g., Black, Blue, Clear">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="taskProductUrl" class="form-label">Product URL</label>
+                            <input type="url" class="form-control" id="taskProductUrl" placeholder="https://...">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="taskDueDate" class="form-label">Due Date</label>
+                                    <input type="date" class="form-control" id="taskDueDate">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="taskPriority" class="form-label">Priority</label>
+                                    <select class="form-select" id="taskPriority">
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                        <option value="low">Low</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="taskEstimatedHours" class="form-label">Estimated Hours</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="taskEstimatedHours" step="0.5" min="0">
+                                <span class="input-group-text">hours</span>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="taskNotes" class="form-label">Notes</label>
+                            <textarea class="form-control" id="taskNotes" rows="3" placeholder="Additional instructions or notes..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Assign Task
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Task Modal -->
+    <div class="modal fade" id="editTaskModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit me-2"></i>Edit Task
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="editTaskForm">
+                    <div class="modal-body">
+                        <input type="hidden" id="editTaskId">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="editTaskEmployee" class="form-label">Employee *</label>
+                                    <select class="form-select" id="editTaskEmployee" required>
+                                        <option value="">Select Employee</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="editTaskProduct" class="form-label">Product</label>
+                                    <select class="form-select" id="editTaskProduct">
+                                        <option value="">Select Product (Optional)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="mb-3">
+                                    <label class="form-label">Platforms *</label>
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input edit-platform-checkbox" type="checkbox" value="amazon" id="editPlatformAmazon">
+                                                        <label class="form-check-label" for="editPlatformAmazon">
+                                                            <i class="fab fa-amazon me-1 text-warning"></i>Amazon
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input edit-platform-checkbox" type="checkbox" value="flipkart" id="editPlatformFlipkart">
+                                                        <label class="form-check-label" for="editPlatformFlipkart">
+                                                            <i class="fas fa-shopping-cart me-1 text-primary"></i>Flipkart
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input edit-platform-checkbox" type="checkbox" value="meesho" id="editPlatformMeesho">
+                                                        <label class="form-check-label" for="editPlatformMeesho">
+                                                            <i class="fas fa-store me-1 text-danger"></i>Meesho
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input edit-platform-checkbox" type="checkbox" value="ebay" id="editPlatformEbay">
+                                                        <label class="form-check-label" for="editPlatformEbay">
+                                                            <i class="fas fa-gavel me-1 text-info"></i>eBay
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input edit-platform-checkbox" type="checkbox" value="shopify" id="editPlatformShopify">
+                                                        <label class="form-check-label" for="editPlatformShopify">
+                                                            <i class="fab fa-shopify me-1 text-success"></i>Shopify
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input edit-platform-checkbox" type="checkbox" value="walmart" id="editPlatformWalmart">
+                                                        <label class="form-check-label" for="editPlatformWalmart">
+                                                            <i class="fas fa-store me-1 text-primary"></i>Walmart
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input edit-platform-checkbox" type="checkbox" value="custom" id="editPlatformCustom">
+                                                        <label class="form-check-label" for="editPlatformCustom">
+                                                            <i class="fas fa-plus me-1 text-secondary"></i>Custom Platform
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Custom Platform Input for Edit -->
+                                            <div class="mt-3" id="editCustomPlatformSection" style="display: none;">
+                                                <label for="editCustomPlatformName" class="form-label">Custom Platform Name</label>
+                                                <div class="input-group">
+                                                    <input type="text" class="form-control" id="editCustomPlatformName" placeholder="e.g., MyStore, Local Marketplace">
+                                                    <button class="btn btn-outline-secondary" type="button" id="editAddCustomPlatform">
+                                                        <i class="fas fa-plus"></i>
+                                                    </button>
+                                                </div>
+                                                <div id="editCustomPlatformsList" class="mt-2">
+                                                    <small class="text-muted">Added custom platforms will appear here</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="editTaskColor" class="form-label">Color/Model</label>
+                                    <input type="text" class="form-control" id="editTaskColor" placeholder="e.g., Black, Blue, Clear">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editTaskProductUrl" class="form-label">Product URL</label>
+                            <input type="url" class="form-control" id="editTaskProductUrl" placeholder="https://...">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="editTaskDueDate" class="form-label">Due Date</label>
+                                    <input type="date" class="form-control" id="editTaskDueDate">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="editTaskPriority" class="form-label">Priority</label>
+                                    <select class="form-select" id="editTaskPriority">
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                        <option value="low">Low</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="editTaskStatus" class="form-label">Status</label>
+                                    <select class="form-select" id="editTaskStatus">
+                                        <option value="pending">Pending</option>
+                                        <option value="in_progress">In Progress</option>
+                                        <option value="completed">Completed</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="editTaskEstimatedHours" class="form-label">Estimated Hours</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="editTaskEstimatedHours" step="0.5" min="0">
+                                        <span class="input-group-text">hours</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="editTaskCompletedHours" class="form-label">Completed Hours</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="editTaskCompletedHours" step="0.5" min="0">
+                                        <span class="input-group-text">hours</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editTaskNotes" class="form-label">Notes</label>
+                            <textarea class="form-control" id="editTaskNotes" rows="3" placeholder="Additional instructions or notes..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Update Task
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Details Modal -->
+    <div class="modal fade" id="taskDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-info-circle me-2"></i>Task Details
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="taskDetailsContent">
+                    <!-- Task details will be loaded here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="addActivityBtn">
+                        <i class="fas fa-plus me-2"></i>Add Activity
+                    </button>
+                    <button type="button" class="btn btn-warning" id="editFromDetails">
+                        <i class="fas fa-edit me-2"></i>Edit Task
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Activity Modal -->
+    <div class="modal fade" id="addActivityModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-plus me-2"></i>Add Activity Log
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="addActivityForm">
+                    <div class="modal-body">
+                        <input type="hidden" id="activityTaskId">
+                        <input type="hidden" id="activityEmployeeId">
+                        <div class="mb-3">
+                            <label for="activityDate" class="form-label">Date *</label>
+                            <input type="date" class="form-control" id="activityDate" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="activityHours" class="form-label">Hours Worked</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="activityHours" step="0.5" min="0">
+                                <span class="input-group-text">hours</span>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="activityStatus" class="form-label">Status Update</label>
+                            <select class="form-select" id="activityStatus">
+                                <option value="">No change</option>
+                                <option value="pending">Pending</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="completed">Completed</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="activityDescription" class="form-label">Activity Description *</label>
+                            <textarea class="form-control" id="activityDescription" rows="3" required placeholder="Describe what was done..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Add Activity
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/task-assignment.js"></script>
+</body>
+</html>

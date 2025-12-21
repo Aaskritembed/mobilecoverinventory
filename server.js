@@ -1,0 +1,2413 @@
+const express = require('express');
+const multer = require('multer');
+const sqlite3 = require('sqlite3').verbose();
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
+const { phoneModelsCache, colorsCache, dashboardCache } = require('./utils/cache');
+const {
+    validateProduct,
+    validateSale,
+    validateEmployee,
+    validateEmployeeTask,
+    validateReturn,
+    validateReturnReason,
+    validateTaskActivity,
+    validatePhoneModel,
+    validateColor,
+    createSecureUpload,
+    securityMiddleware,
+    errorHandler
+} = require('./middleware/security');
+
+// Create Express app
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static('.'));
+
+// Security middleware
+app.use(securityMiddleware);
+app.use('/uploads', express.static('uploads'));
+
+// Ensure uploads directory exists
+if (!fs.existsSync('uploads')) {
+    fs.mkdirSync('uploads');
+}
+
+// Configure secure multer for file uploads
+const upload = createSecureUpload({
+    limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB
+        files: 1
+    }
+});
+
+// Initialize SQLite Database
+const db = new sqlite3.Database('./database/inventory.db', (err) => {
+    if (err) {
+        console.error('Error opening database:', err.message);
+    } else {
+        console.log('Connected to SQLite database');
+        initializeDatabase();
+    }
+});
+
+// Initialize database tables
+function initializeDatabase() {
+    // Create products table
+    db.run(`
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT,
+            cost_price REAL NOT NULL,
+            selling_price REAL NOT NULL,
+            quantity INTEGER DEFAULT 0,
+            image_path TEXT,
+            brand TEXT,
+            model TEXT,
+            color TEXT,
+            created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_date DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // Create sales table
+    db.run(`
+        CREATE TABLE IF NOT EXISTS sales (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id INTEGER,
+            quantity_sold INTEGER NOT NULL,
+            sale_price REAL NOT NULL,
+            total_amount REAL NOT NULL,
+            sale_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (product_id) REFERENCES products (id)
+        )
+    `);
+
+    // Create phone models table for custom models
+    db.run(`
+        CREATE TABLE IF NOT EXISTS phone_models (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            brand TEXT NOT NULL,
+            model TEXT NOT NULL,
+            created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(brand, model)
+        )
+    `);
+
+    // Create colors table for mobile cover colors
+    db.run(`
+        CREATE TABLE IF NOT EXISTS colors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            hex_code TEXT,
+            created_date DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // Insert default colors if table is empty
+    db.get('SELECT COUNT(*) as count FROM colors', (err, row) => {
+        if (err) {
+            console.error('Error checking colors table:', err);
+        } else if (row.count === 0) {
+            insertDefaultColors();
+        }
+    });
+
+    // Insert sample data if database is empty
+    db.get('SELECT COUNT(*) as count FROM products', (err, row) => {
+        if (err) {
+            console.error('Error checking products table:', err);
+        } else if (row.count === 0) {
+            insertSampleData();
+        }
+    });
+}
+
+// Insert sample data
+function insertSampleData() {
+    const sampleProducts = [
+        {
+            name: 'iPhone 14 Pro Clear Case',
+            description: 'Transparent clear case for iPhone 14 Pro',
+            cost_price: 15.99,
+            selling_price: 29.99,
+            quantity: 50,
+            brand: 'Apple',
+            model: 'iPhone 14 Pro'
+        },
+        {
+            name: 'Samsung Galaxy S23 Ultra Case',
+            description: 'Protective case for Samsung Galaxy S23 Ultra',
+            cost_price: 12.99,
+            selling_price: 24.99,
+            quantity: 35,
+            brand: 'Samsung',
+            model: 'Galaxy S23 Ultra'
+        },
+        {
+            name: 'Google Pixel 7 Pro Case',
+            description: 'Premium case for Google Pixel 7 Pro',
+            cost_price: 18.99,
+            selling_price: 34.99,
+            quantity: 25,
+            brand: 'Google',
+            model: 'Pixel 7 Pro'
+        },
+        {
+            name: 'iPhone 13 Mini Case',
+            description: 'Compact case for iPhone 13 Mini',
+            cost_price: 13.99,
+            selling_price: 26.99,
+            quantity: 40,
+            brand: 'Apple',
+            model: 'iPhone 13 Mini'
+        }
+    ];
+
+    sampleProducts.forEach(product => {
+        db.run(
+            'INSERT INTO products (name, description, cost_price, selling_price, quantity, brand, model) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [product.name, product.description, product.cost_price, product.selling_price, product.quantity, product.brand, product.model]
+        );
+    });
+
+    // Add sample sales
+    db.run(
+        'INSERT INTO sales (product_id, quantity_sold, sale_price, total_amount) VALUES (?, ?, ?, ?)',
+        [1, 5, 29.99, 149.95]
+    );
+    db.run(
+        'INSERT INTO sales (product_id, quantity_sold, sale_price, total_amount) VALUES (?, ?, ?, ?)',
+        [2, 3, 24.99, 74.97]
+    );
+
+    console.log('Sample data inserted successfully');
+}
+
+// Insert default colors
+function insertDefaultColors() {
+    const defaultColors = [
+        { name: 'Black', hex_code: '#000000' },
+        { name: 'White', hex_code: '#FFFFFF' },
+        { name: 'Red', hex_code: '#FF0000' },
+        { name: 'Blue', hex_code: '#0000FF' },
+        { name: 'Green', hex_code: '#008000' },
+        { name: 'Yellow', hex_code: '#FFFF00' },
+        { name: 'Purple', hex_code: '#800080' },
+        { name: 'Orange', hex_code: '#FFA500' },
+        { name: 'Pink', hex_code: '#FFC0CB' },
+        { name: 'Brown', hex_code: '#A52A2A' },
+        { name: 'Gray', hex_code: '#808080' },
+        { name: 'Silver', hex_code: '#C0C0C0' },
+        { name: 'Gold', hex_code: '#FFD700' },
+        { name: 'Clear', hex_code: '#F0F8FF' },
+        { name: 'Transparent', hex_code: '#E6F3FF' },
+        { name: 'Maroon', hex_code: '#800000' },
+        { name: 'Navy', hex_code: '#000080' },
+        { name: 'Teal', hex_code: '#008080' },
+        { name: 'Lime', hex_code: '#00FF00' },
+        { name: 'Aqua', hex_code: '#00FFFF' },
+        { name: 'Olive', hex_code: '#808000' },
+        { name: 'Coral', hex_code: '#FF7F50' },
+        { name: 'Crimson', hex_code: '#DC143C' },
+        { name: 'Indigo', hex_code: '#4B0082' },
+        { name: 'Violet', hex_code: '#EE82EE' },
+        { name: 'Turquoise', hex_code: '#40E0D0' },
+        { name: 'Salmon', hex_code: '#FA8072' },
+        { name: 'Plum', hex_code: '#DDA0DD' },
+        { name: 'Orchid', hex_code: '#DA70D6' },
+        { name: 'Khaki', hex_code: '#F0E68C' },
+        { name: 'Beige', hex_code: '#F5F5DC' },
+        { name: 'Tan', hex_code: '#D2B48C' },
+        { name: 'Chocolate', hex_code: '#D2691E' },
+        { name: 'Firebrick', hex_code: '#B22222' },
+        { name: 'Forest Green', hex_code: '#228B22' },
+        { name: 'Royal Blue', hex_code: '#4169E1' },
+        { name: 'Dark Orange', hex_code: '#FF8C00' },
+        { name: 'Hot Pink', hex_code: '#FF69B4' },
+        { name: 'Medium Purple', hex_code: '#9370DB' },
+        { name: 'Light Green', hex_code: '#90EE90' },
+        { name: 'Light Blue', hex_code: '#ADD8E6' },
+        { name: 'Light Pink', hex_code: '#FFB6C1' },
+        { name: 'Light Gray', hex_code: '#D3D3D3' },
+        { name: 'Dark Gray', hex_code: '#A9A9A9' },
+        { name: 'Midnight Blue', hex_code: '#191970' },
+        { name: 'Slate Blue', hex_code: '#6A5ACD' },
+        { name: 'Slate Gray', hex_code: '#708090' },
+        { name: 'Dark Slate Blue', hex_code: '#483D8B' },
+        { name: 'Dark Slate Gray', hex_code: '#2F4F4F' },
+        { name: 'Dim Gray', hex_code: '#696969' }
+    ];
+
+    defaultColors.forEach(color => {
+        db.run(
+            'INSERT INTO colors (name, hex_code) VALUES (?, ?)',
+            [color.name, color.hex_code]
+        );
+    });
+
+    console.log('Default colors inserted successfully');
+}
+
+// API Routes
+
+// Get all products
+app.get('/api/products', (req, res) => {
+    db.all('SELECT * FROM products ORDER BY created_date DESC', (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json(rows);
+        }
+    });
+});
+
+// Get unique brands (cached)
+app.get('/api/brands', (req, res) => {
+    const cacheKey = 'all_brands';
+    
+    phoneModelsCache.getOrFetch(cacheKey, async () => {
+        return new Promise((resolve, reject) => {
+            db.all('SELECT DISTINCT brand FROM products WHERE brand IS NOT NULL ORDER BY brand', (err, rows) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    const brands = rows.map(row => row.brand).filter(brand => brand);
+                    // Add popular brands if not in database
+                    const popularBrands = ['Apple', 'Samsung', 'Google', 'OnePlus', 'Xiaomi', 'Huawei', 'Oppo', 'Vivo', 'Realme', 'Motorola', 'Nokia', 'Sony'];
+                    const allBrands = [...new Set([...popularBrands, ...brands])];
+                    resolve(allBrands);
+                }
+            });
+        });
+    }).then(brands => {
+        res.json(brands);
+    }).catch(err => {
+        res.status(500).json({ error: err.message });
+    });
+});
+
+// Get models by brand
+app.get('/api/models/:brand', (req, res) => {
+    const { brand } = req.params;
+    
+    // First get models from phone_models table (custom models)
+    db.all('SELECT model FROM phone_models WHERE brand = ? ORDER BY model', [brand], (err, customRows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        
+        // Then get models from products table
+        db.all('SELECT DISTINCT model FROM products WHERE brand = ? AND model IS NOT NULL ORDER BY model', [brand], (err, productRows) => {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            
+            const customModels = customRows ? customRows.map(row => row.model) : [];
+            const productModels = productRows ? productRows.map(row => row.model).filter(model => model) : [];
+            
+            // Add comprehensive models for popular brands
+            let comprehensiveModels = [];
+            switch (brand.toLowerCase()) {
+                case 'apple':
+                    comprehensiveModels = [
+                        'iPhone 15 Pro Max', 'iPhone 15 Pro', 'iPhone 15 Plus', 'iPhone 15',
+                        'iPhone 14 Pro Max', 'iPhone 14 Pro', 'iPhone 14 Plus', 'iPhone 14',
+                        'iPhone 13 Pro Max', 'iPhone 13 Pro', 'iPhone 13', 'iPhone 13 Mini',
+                        'iPhone 12 Pro Max', 'iPhone 12 Pro', 'iPhone 12', 'iPhone 12 Mini',
+                        'iPhone SE 3rd Gen', 'iPhone SE 2nd Gen', 'iPhone 11 Pro Max', 'iPhone 11 Pro',
+                        'iPhone 11', 'iPhone XS Max', 'iPhone XS', 'iPhone XR', 'iPhone X',
+                        'iPhone 8 Plus', 'iPhone 8', 'iPhone 7 Plus', 'iPhone 7'
+                    ];
+                    break;
+                case 'samsung':
+                    comprehensiveModels = [
+                        'Galaxy S24 Ultra', 'Galaxy S24+', 'Galaxy S24',
+                        'Galaxy S23 Ultra', 'Galaxy S23+', 'Galaxy S23', 'Galaxy S23 FE',
+                        'Galaxy S22 Ultra', 'Galaxy S22+', 'Galaxy S22',
+                        'Galaxy S21 Ultra', 'Galaxy S21+', 'Galaxy S21', 'Galaxy S21 FE',
+                        'Galaxy S20 Ultra', 'Galaxy S20+', 'Galaxy S20', 'Galaxy S20 FE',
+                        'Galaxy Note 20 Ultra', 'Galaxy Note 20',
+                        'Galaxy Z Fold 5', 'Galaxy Z Flip 5', 'Galaxy Z Fold 4', 'Galaxy Z Flip 4',
+                        'Galaxy A55', 'Galaxy A54', 'Galaxy A35', 'Galaxy A34', 'Galaxy A25', 'Galaxy A24',
+                        'Galaxy A15', 'Galaxy A14', 'Galaxy A05', 'Galaxy A04s', 'Galaxy A03s'
+                    ];
+                    break;
+                case 'google':
+                    comprehensiveModels = [
+                        'Pixel 8 Pro', 'Pixel 8', 'Pixel 8a',
+                        'Pixel 7a', 'Pixel 7 Pro', 'Pixel 7',
+                        'Pixel 6a', 'Pixel 6 Pro', 'Pixel 6',
+                        'Pixel 5a 5G', 'Pixel 5',
+                        'Pixel 4a 5G', 'Pixel 4a', 'Pixel 4 XL', 'Pixel 4',
+                        'Pixel 3a XL', 'Pixel 3a', 'Pixel 3 XL', 'Pixel 3',
+                        'Pixel 2 XL', 'Pixel 2', 'Pixel XL', 'Pixel'
+                    ];
+                    break;
+                case 'oneplus':
+                    comprehensiveModels = [
+                        'OnePlus 12', 'OnePlus 12R',
+                        'OnePlus 11', 'OnePlus 11R',
+                        'OnePlus 10 Pro', 'OnePlus 10T', 'OnePlus 10',
+                        'OnePlus 9 Pro', 'OnePlus 9', 'OnePlus 9R',
+                        'OnePlus 8T', 'OnePlus 8 Pro', 'OnePlus 8',
+                        'OnePlus 7T Pro', 'OnePlus 7T', 'OnePlus 7 Pro', 'OnePlus 7',
+                        'OnePlus 6T', 'OnePlus 6', 'OnePlus 5T', 'OnePlus 5',
+                        'OnePlus 3T', 'OnePlus 3'
+                    ];
+                    break;
+                case 'xiaomi':
+                    comprehensiveModels = [
+                        'Xiaomi 14 Ultra', 'Xiaomi 14 Pro', 'Xiaomi 14',
+                        'Xiaomi 13 Ultra', 'Xiaomi 13 Pro', 'Xiaomi 13',
+                        'Xiaomi 12 Ultra', 'Xiaomi 12 Pro', 'Xiaomi 12', 'Xiaomi 12X',
+                        'Xiaomi 11 Ultra', 'Xiaomi 11 Pro', 'Xiaomi 11',
+                        'Xiaomi 11T Pro', 'Xiaomi 11T',
+                        'Xiaomi Mi 10 Ultra', 'Xiaomi Mi 10 Pro', 'Xiaomi Mi 10', 'Xiaomi Mi 10T Pro', 'Xiaomi Mi 10T',
+                        'Redmi Note 13 Pro+', 'Redmi Note 13 Pro', 'Redmi Note 13', 'Redmi Note 13R',
+                        'Redmi Note 12 Pro+', 'Redmi Note 12 Pro', 'Redmi Note 12', 'Redmi Note 12S',
+                        'Redmi Note 11 Pro+', 'Redmi Note 11 Pro', 'Redmi Note 11', 'Redmi Note 11S',
+                        'Redmi Note 10 Pro', 'Redmi Note 10', 'Redmi Note 10S', 'Redmi Note 10 5G',
+                        'Redmi Note 9 Pro', 'Redmi Note 9', 'Redmi Note 9S',
+                        'Redmi Note 8 Pro', 'Redmi Note 8', 'Redmi Note 8T',
+                        'Redmi 13', 'Redmi 12', 'Redmi 12C', 'Redmi 11',
+                        'Redmi 10', 'Redmi 10 Prime', 'Redmi 10C', 'Redmi 9', 'Redmi 9C', 'Redmi 9A'
+                    ];
+                    break;
+                case 'huawei':
+                    comprehensiveModels = [
+                        'P60 Pro', 'P60', 'P50 Pro', 'P50', 'P50 Pocket',
+                        'P40 Pro+', 'P40 Pro', 'P40', 'P40 Lite', 'P30 Pro', 'P30', 'P30 Lite',
+                        'Mate 60 Pro', 'Mate 60', 'Mate 50 Pro', 'Mate 50', 'Mate 40 Pro+', 'Mate 40 Pro', 'Mate 40',
+                        'Mate 30 Pro', 'Mate 30', 'Mate 20 Pro', 'Mate 20', 'Mate 20 Lite',
+                        'nova 11 Ultra', 'nova 11 Pro', 'nova 11', 'nova 10 Pro', 'nova 10', 'nova 9', 'nova 8i',
+                        'Y90', 'Y70', 'Y60', 'Y50', 'Y9a', 'Y7a', 'Y6s'
+                    ];
+                    break;
+                case 'oppo':
+                    comprehensiveModels = [
+                        'Find X7 Ultra', 'Find X7', 'Find X6 Pro', 'Find X6', 'Find X5 Pro', 'Find X5', 'Find X3 Pro', 'Find X3',
+                        'Reno 11 Pro', 'Reno 11', 'Reno 10 Pro+', 'Reno 10 Pro', 'Reno 10', 'Reno 9 Pro+', 'Reno 9 Pro', 'Reno 9',
+                        'Reno 8 Pro+', 'Reno 8 Pro', 'Reno 8', 'Reno 7 Pro', 'Reno 7', 'Reno 6 Pro+', 'Reno 6 Pro', 'Reno 6',
+                        'A98', 'A78', 'A77s', 'A76', 'A74', 'A58', 'A57', 'A55', 'A54', 'A53', 'A35', 'A34', 'A17', 'A16K'
+                    ];
+                    break;
+                case 'vivo':
+                    comprehensiveModels = [
+                        'X100 Pro', 'X100', 'X90 Pro+', 'X90 Pro', 'X90', 'X80 Pro', 'X80', 'X70 Pro+', 'X70 Pro', 'X70',
+                        'V29 Pro', 'V29', 'V27 Pro', 'V27', 'V25 Pro', 'V25', 'V23 Pro', 'V23', 'V21e', 'V21',
+                        'Y100', 'Y78', 'Y76s', 'Y36', 'Y27', 'Y22s', 'Y16', 'Y15s', 'Y12s', 'Y02s'
+                    ];
+                    break;
+                case 'realme':
+                    comprehensiveModels = [
+                        '12 Pro+', '12 Pro', '12+', '12',
+                        '11 Pro+', '11 Pro', '11',
+                        '10 Pro+', '10 Pro', '10',
+                        '9 Pro+', '9 Pro', '9',
+                        'GT Neo 5', 'GT Neo 3', 'GT Neo 2', 'GT Neo',
+                        'GT Master Edition', 'GT Explorer Master', 'GT',
+                        'C67', 'C55', 'C53', 'C51', 'C35', 'C33', 'C31', 'C25Y', 'C25', 'C21Y', 'C21', 'C20', 'C17', 'C15', 'C12'
+                    ];
+                    break;
+                case 'motorola':
+                    comprehensiveModels = [
+                        'Edge 50 Pro', 'Edge 50', 'Edge 40 Pro', 'Edge 40', 'Edge 30 Pro', 'Edge 30', 'Edge 20 Pro', 'Edge 20',
+                        'Razr 40 Ultra', 'Razr 40', 'Razr 30 Ultra', 'Razr 30', 'Razr 2022', 'Razr 5G',
+                        'Moto G84', 'G73', 'G72', 'G71', 'G62', 'G60', 'G52', 'G51', 'G50', 'G42', 'G41', 'G40', 'G31',
+                        'Moto G24', 'G23', 'G14', 'G13', 'G04', 'G04s',
+                        'Moto E32s', 'E32', 'E22s', 'E22', 'E13', 'E7 Power', 'E7 Plus', 'E7', 'E6s', 'E6 Plus', 'E6'
+                    ];
+                    break;
+                case 'nokia':
+                    comprehensiveModels = [
+                        'G42', 'G32', 'G22', 'G21', 'G11', 'G11 Plus',
+                        'X30', 'X20', 'X10',
+                        'C32', 'C31', 'C22', 'C21 Plus', 'C21', 'C2', 'C1',
+                        '8.3 5G', '8.1', '8', '7.2', '7.1', '7 Plus', '7',
+                        '6.2', '6.1 Plus', '6.1', '6',
+                        '5.4', '5.3', '5.1 Plus', '5.1', '5',
+                        '4.2', '3.2', '3.1 Plus', '3.1', '3',
+                        '2.4', '2.3', '2.2', '2.1', '2'
+                    ];
+                    break;
+                case 'sony':
+                    comprehensiveModels = [
+                        'Xperia 1 V', 'Xperia 1 IV', 'Xperia 1 III', 'Xperia 1 II', 'Xperia 1',
+                        'Xperia 5 V', 'Xperia 5 IV', 'Xperia 5 III', 'Xperia 5 II', 'Xperia 5',
+                        'Xperia 10 V', 'Xperia 10 IV', 'Xperia 10 III', 'Xperia 10 II', 'Xperia 10',
+                        'Xperia Pro', 'Xperia Pro-I',
+                        'Xperia L4', 'Xperia L3', 'Xperia L2', 'Xperia L1'
+                    ];
+                    break;
+                case 'honor':
+                    comprehensiveModels = [
+                        'Magic 6 Pro', 'Magic 6', 'Magic 5 Pro', 'Magic 5', 'Magic 4 Pro', 'Magic 4', 'Magic 3 Pro+', 'Magic 3 Pro', 'Magic 3',
+                        'Honor 200 Pro', 'Honor 200', 'Honor 100 Pro', 'Honor 100', 'Honor 90 Pro', 'Honor 90', 'Honor 80 Pro', 'Honor 80', 'Honor 70 Pro', 'Honor 70',
+                        'Honor X9b', 'Honor X9a', 'Honor X8b', 'Honor X8a', 'Honor X7b', 'Honor X7a', 'Honor X6b', 'Honor X6a', 'Honor X6',
+                        'Honor 50', 'Honor 50 Lite', 'Honor 30 Pro+', 'Honor 30 Pro', 'Honor 30', 'Honor 20 Pro', 'Honor 20', 'Honor 20 Lite',
+                        'Honor 10 Lite', 'Honor 9X', 'Honor 9C', 'Honor 9A', 'Honor 8X', 'Honor 8C', 'Honor 8A'
+                    ];
+                    break;
+                case 'lg':
+                    comprehensiveModels = [
+                        'Wing 5G', 'Velvet 5G', 'G8X ThinQ', 'G8 ThinQ', 'G8s ThinQ', 'G7 ThinQ', 'G7 Fit', 'G6', 'G5', 'G4', 'G3',
+                        'V50 ThinQ 5G', 'V50S ThinQ 5G', 'V40 ThinQ', 'V35 ThinQ', 'V30', 'V20', 'V10',
+                        'Q70', 'Q60', 'Q51', 'Q7', 'Q6', 'Q Stylo 4+',
+                        'K92 5G', 'K62', 'K52', 'K42', 'K41', 'K40', 'K31', 'K30', 'K22+', 'K22', 'K12+'
+                    ];
+                    break;
+                case 'alcatel':
+                    comprehensiveModels = [
+                        '3L', '3X', '3V', '3', '3C',
+                        '1L Pro', '1L', '1S', '1B', '1',
+                        '7L', '7V', '7',
+                        '5L', '5V', '5', '5X',
+                        'A7 XL', 'A7', 'A5 LED', 'A3', 'A3 XL',
+                        'Tetra', 'Shine Lite', 'Pixi 4 Plus Power', 'Pixi 4 5.5', 'Pixi 4 5.0'
+                    ];
+                    break;
+                case 'tecno':
+                    comprehensiveModels = [
+                        'Camon 30 Premier', 'Camon 30 Pro', 'Camon 30', 'Camon 20 Premier', 'Camon 20 Pro', 'Camon 20',
+                        'Spark 20 Pro', 'Spark 20', 'Spark 10 Pro', 'Spark 10', 'Spark 8 Pro', 'Spark 8',
+                        'Pova 5 Pro', 'Pova 5', 'Pova 4 Pro', 'Pova 4', 'Pova 3', 'Pova 2',
+                        'Pop 7 Pro', 'Pop 7', 'Pop 6 Pro', 'Pop 6',
+                        'Phantom X2 Pro', 'Phantom X2', 'Phantom X', 'Phantom V Fold', 'Phantom V Flip'
+                    ];
+                    break;
+                case 'infinix':
+                    comprehensiveModels = [
+                        'Note 40 Pro+', 'Note 40 Pro', 'Note 40', 'Note 30 VIP', 'Note 30 Pro', 'Note 30',
+                        'Hot 40 Pro', 'Hot 40', 'Hot 30 Pro', 'Hot 30', 'Hot 20 Play', 'Hot 20S', 'Hot 20',
+                        'Zero 30', 'Zero 20', 'Zero 10', 'Zero 8', 'Zero 7',
+                        'Smart 8 Pro', 'Smart 8', 'Smart 7 HD', 'Smart 7',
+                        'S5 Pro', 'S4', 'S3X'
+                    ];
+                    break;
+            }
+            
+            // Combine all models, removing duplicates
+            const allModels = [...new Set([...comprehensiveModels, ...productModels, ...customModels])];
+            allModels.sort(); // Sort alphabetically
+            
+            res.json(allModels);
+        });
+    });
+});
+
+// Add new phone model
+app.post('/api/models', (req, res) => {
+    const { brand, model } = req.body;
+    
+    if (!brand || !model) {
+        return res.status(400).json({ error: 'Brand and model are required' });
+    }
+
+    const sql = 'INSERT INTO phone_models (brand, model) VALUES (?, ?)';
+    const params = [brand.trim(), model.trim()];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            if (err.message.includes('UNIQUE constraint failed')) {
+                return res.status(409).json({ error: 'This model already exists for the specified brand' });
+            }
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json({ 
+                id: this.lastID, 
+                message: 'Phone model added successfully',
+                brand: brand.trim(),
+                model: model.trim()
+            });
+        }
+    });
+});
+
+// Get all custom models (not from products)
+app.get('/api/custom-models', (req, res) => {
+    db.all('SELECT * FROM phone_models ORDER BY brand, model', (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json(rows);
+        }
+    });
+});
+
+// Get models by brand (alternative endpoint)
+app.get('/api/brand-models/:brand', (req, res) => {
+    const { brand } = req.params;
+    
+    // This is the same as /api/models/:brand but using different naming
+    db.all('SELECT DISTINCT model FROM products WHERE brand = ? AND model IS NOT NULL ORDER BY model', [brand], (err, productRows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        
+        // Get custom models for this brand
+        db.all('SELECT model FROM phone_models WHERE brand = ? ORDER BY model', [brand], (err, customRows) => {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            
+            const customModels = customRows ? customRows.map(row => row.model) : [];
+            const productModels = productRows ? productRows.map(row => row.model).filter(model => model) : [];
+            
+            // Add comprehensive models for popular brands
+            let comprehensiveModels = [];
+            switch (brand.toLowerCase()) {
+                case 'apple':
+                    comprehensiveModels = [
+                        'iPhone 15 Pro Max', 'iPhone 15 Pro', 'iPhone 15 Plus', 'iPhone 15',
+                        'iPhone 14 Pro Max', 'iPhone 14 Pro', 'iPhone 14 Plus', 'iPhone 14',
+                        'iPhone 13 Pro Max', 'iPhone 13 Pro', 'iPhone 13', 'iPhone 13 Mini',
+                        'iPhone 12 Pro Max', 'iPhone 12 Pro', 'iPhone 12', 'iPhone 12 Mini',
+                        'iPhone SE 3rd Gen', 'iPhone SE 2nd Gen', 'iPhone 11 Pro Max', 'iPhone 11 Pro',
+                        'iPhone 11', 'iPhone XS Max', 'iPhone XS', 'iPhone XR', 'iPhone X',
+                        'iPhone 8 Plus', 'iPhone 8', 'iPhone 7 Plus', 'iPhone 7'
+                    ];
+                    break;
+                case 'samsung':
+                    comprehensiveModels = [
+                        'Galaxy S24 Ultra', 'Galaxy S24+', 'Galaxy S24',
+                        'Galaxy S23 Ultra', 'Galaxy S23+', 'Galaxy S23', 'Galaxy S23 FE',
+                        'Galaxy S22 Ultra', 'Galaxy S22+', 'Galaxy S22',
+                        'Galaxy S21 Ultra', 'Galaxy S21+', 'Galaxy S21', 'Galaxy S21 FE',
+                        'Galaxy S20 Ultra', 'Galaxy S20+', 'Galaxy S20', 'Galaxy S20 FE',
+                        'Galaxy Note 20 Ultra', 'Galaxy Note 20',
+                        'Galaxy Z Fold 5', 'Galaxy Z Flip 5', 'Galaxy Z Fold 4', 'Galaxy Z Flip 4',
+                        'Galaxy A55', 'Galaxy A54', 'Galaxy A35', 'Galaxy A34', 'Galaxy A25', 'Galaxy A24',
+                        'Galaxy A15', 'Galaxy A14', 'Galaxy A05', 'Galaxy A04s', 'Galaxy A03s'
+                    ];
+                    break;
+                case 'google':
+                    comprehensiveModels = [
+                        'Pixel 8 Pro', 'Pixel 8', 'Pixel 8a',
+                        'Pixel 7a', 'Pixel 7 Pro', 'Pixel 7',
+                        'Pixel 6a', 'Pixel 6 Pro', 'Pixel 6',
+                        'Pixel 5a 5G', 'Pixel 5',
+                        'Pixel 4a 5G', 'Pixel 4a', 'Pixel 4 XL', 'Pixel 4',
+                        'Pixel 3a XL', 'Pixel 3a', 'Pixel 3 XL', 'Pixel 3',
+                        'Pixel 2 XL', 'Pixel 2', 'Pixel XL', 'Pixel'
+                    ];
+                    break;
+                case 'oneplus':
+                    comprehensiveModels = [
+                        'OnePlus 12', 'OnePlus 12R',
+                        'OnePlus 11', 'OnePlus 11R',
+                        'OnePlus 10 Pro', 'OnePlus 10T', 'OnePlus 10',
+                        'OnePlus 9 Pro', 'OnePlus 9', 'OnePlus 9R',
+                        'OnePlus 8T', 'OnePlus 8 Pro', 'OnePlus 8',
+                        'OnePlus 7T Pro', 'OnePlus 7T', 'OnePlus 7 Pro', 'OnePlus 7',
+                        'OnePlus 6T', 'OnePlus 6', 'OnePlus 5T', 'OnePlus 5',
+                        'OnePlus 3T', 'OnePlus 3'
+                    ];
+                    break;
+                case 'xiaomi':
+                    comprehensiveModels = [
+                        'Xiaomi 14 Ultra', 'Xiaomi 14 Pro', 'Xiaomi 14',
+                        'Xiaomi 13 Ultra', 'Xiaomi 13 Pro', 'Xiaomi 13',
+                        'Xiaomi 12 Ultra', 'Xiaomi 12 Pro', 'Xiaomi 12', 'Xiaomi 12X',
+                        'Xiaomi 11 Ultra', 'Xiaomi 11 Pro', 'Xiaomi 11',
+                        'Xiaomi 11T Pro', 'Xiaomi 11T',
+                        'Xiaomi Mi 10 Ultra', 'Xiaomi Mi 10 Pro', 'Xiaomi Mi 10', 'Xiaomi Mi 10T Pro', 'Xiaomi Mi 10T',
+                        'Redmi Note 13 Pro+', 'Redmi Note 13 Pro', 'Redmi Note 13', 'Redmi Note 13R',
+                        'Redmi Note 12 Pro+', 'Redmi Note 12 Pro', 'Redmi Note 12', 'Redmi Note 12S',
+                        'Redmi Note 11 Pro+', 'Redmi Note 11 Pro', 'Redmi Note 11', 'Redmi Note 11S',
+                        'Redmi Note 10 Pro', 'Redmi Note 10', 'Redmi Note 10S', 'Redmi Note 10 5G',
+                        'Redmi Note 9 Pro', 'Redmi Note 9', 'Redmi Note 9S',
+                        'Redmi Note 8 Pro', 'Redmi Note 8', 'Redmi Note 8T',
+                        'Redmi 13', 'Redmi 12', 'Redmi 12C', 'Redmi 11',
+                        'Redmi 10', 'Redmi 10 Prime', 'Redmi 10C', 'Redmi 9', 'Redmi 9C', 'Redmi 9A'
+                    ];
+                    break;
+            }
+            
+            // Combine all models, removing duplicates
+            const allModels = [...new Set([...comprehensiveModels, ...productModels, ...customModels])];
+            allModels.sort(); // Sort alphabetically
+            
+            res.json(allModels);
+        });
+    });
+});
+
+// Delete custom model
+app.delete('/api/models/:brand/:model', (req, res) => {
+    const { brand, model } = req.params;
+    
+    // Only delete from phone_models table, not from products
+    db.run('DELETE FROM phone_models WHERE brand = ? AND model = ?', [brand, model], function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (this.changes === 0) {
+            res.status(404).json({ error: 'Model not found in custom models' });
+        } else {
+            res.json({ message: 'Model deleted successfully' });
+        }
+    });
+});
+
+// Get all colors (cached)
+app.get('/api/colors', (req, res) => {
+    const cacheKey = 'all_colors';
+    
+    colorsCache.getOrFetch(cacheKey, async () => {
+        return new Promise((resolve, reject) => {
+            db.all('SELECT * FROM colors ORDER BY name', (err, rows) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(rows);
+                }
+            });
+        });
+    }).then(colors => {
+        res.json(colors);
+    }).catch(err => {
+        res.status(500).json({ error: err.message });
+    });
+});
+
+// Add new color
+app.post('/api/colors', (req, res) => {
+    const { name, hex_code } = req.body;
+    
+    if (!name) {
+        return res.status(400).json({ error: 'Color name is required' });
+    }
+
+    const sql = 'INSERT INTO colors (name, hex_code) VALUES (?, ?)';
+    const params = [name.trim(), hex_code || null];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            if (err.message.includes('UNIQUE constraint failed')) {
+                return res.status(409).json({ error: 'This color already exists' });
+            }
+            res.status(500).json({ error: err.message });
+        } else {
+            // Invalidate colors cache
+            colorsCache.delete('all_colors');
+            res.json({ 
+                id: this.lastID, 
+                message: 'Color added successfully',
+                name: name.trim(),
+                hex_code: hex_code || null
+            });
+        }
+    });
+});
+
+// Delete color
+app.delete('/api/colors/:id', (req, res) => {
+    const { id } = req.params;
+    
+    db.run('DELETE FROM colors WHERE id = ?', [id], function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (this.changes === 0) {
+            res.status(404).json({ error: 'Color not found' });
+        } else {
+            // Invalidate colors cache
+            colorsCache.delete('all_colors');
+            res.json({ message: 'Color deleted successfully' });
+        }
+    });
+});
+
+// Get single product
+app.get('/api/products/:id', (req, res) => {
+    const { id } = req.params;
+    db.get('SELECT * FROM products WHERE id = ?', [id], (err, row) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (!row) {
+            res.status(404).json({ error: 'Product not found' });
+        } else {
+            res.json(row);
+        }
+    });
+});
+
+// Add new product
+app.post('/api/products', validateProduct, (req, res) => {
+    const { name, description, cost_price, selling_price, quantity, brand, model, color } = req.body;
+
+    const sql = 'INSERT INTO products (name, description, cost_price, selling_price, quantity, brand, model, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
+    const params = [name, description, cost_price, selling_price, quantity || 0, brand, model, color];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            // Invalidate cache
+            dashboardCache.delete('dashboard_stats');
+            res.json({ id: this.lastID, message: 'Product added successfully' });
+        }
+    });
+});
+
+// Update product
+app.put('/api/products/:id', (req, res) => {
+    const { id } = req.params;
+    const { name, description, cost_price, selling_price, quantity, brand, model, color } = req.body;
+
+    const sql = `UPDATE products 
+                SET name = ?, description = ?, cost_price = ?, selling_price = ?, 
+                    quantity = ?, brand = ?, model = ?, color = ?, updated_date = CURRENT_TIMESTAMP 
+                WHERE id = ?`;
+    
+    const params = [name, description, cost_price, selling_price, quantity, brand, model, color, id];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (this.changes === 0) {
+            res.status(404).json({ error: 'Product not found' });
+        } else {
+            res.json({ message: 'Product updated successfully' });
+        }
+    });
+});
+
+// Delete product
+app.delete('/api/products/:id', (req, res) => {
+    const { id } = req.params;
+    
+    // First get the product to delete associated image
+    db.get('SELECT image_path FROM products WHERE id = ?', [id], (err, row) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (!row) {
+            res.status(404).json({ error: 'Product not found' });
+        } else {
+            // Delete image file if exists
+            if (row.image_path && fs.existsSync(row.image_path)) {
+                fs.unlinkSync(row.image_path);
+            }
+            
+            // Delete from database
+            db.run('DELETE FROM products WHERE id = ?', [id], function(err) {
+                if (err) {
+                    res.status(500).json({ error: err.message });
+                } else {
+                    res.json({ message: 'Product deleted successfully' });
+                }
+            });
+        }
+    });
+});
+
+// Upload product image
+app.post('/api/upload', upload.single('image'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+    }
+    res.json({ 
+        message: 'File uploaded successfully', 
+        filename: req.file.filename,
+        path: `/uploads/${req.file.filename}`
+    });
+});
+
+// Upload return slip
+app.post('/api/upload-return-slip', upload.single('slip'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'No slip file uploaded' });
+    }
+    res.json({ 
+        message: 'Return slip uploaded successfully', 
+        filename: req.file.filename,
+        path: `/uploads/${req.file.filename}`,
+        originalName: req.file.originalname,
+        size: req.file.size
+    });
+});
+
+// Get all sales
+app.get('/api/sales', (req, res) => {
+    const sql = `
+        SELECT s.*, p.name as product_name 
+        FROM sales s 
+        LEFT JOIN products p ON s.product_id = p.id 
+        ORDER BY s.sale_date DESC
+    `;
+    db.all(sql, (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json(rows);
+        }
+    });
+});
+
+// Upload sale slip
+app.post('/api/upload-sale-slip', upload.single('slip'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'No slip file uploaded' });
+    }
+    res.json({ 
+        message: 'Sale slip uploaded successfully', 
+        filename: req.file.filename,
+        path: `/uploads/${req.file.filename}`,
+        originalName: req.file.originalname,
+        size: req.file.size
+    });
+});
+
+// Record new sale
+app.post('/api/sales', validateSale, (req, res) => {
+    const { product_id, quantity_sold, sale_price, sales_platform, customer_info, payment_method, slip_path } = req.body;
+    
+    const total_amount = quantity_sold * sale_price;
+
+    // Start transaction
+    db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        
+        // Insert sale record with new fields
+        db.run(
+            `INSERT INTO sales (product_id, quantity_sold, sale_price, total_amount, sales_platform, customer_info, payment_method, slip_path) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [product_id, quantity_sold, sale_price, total_amount, sales_platform, customer_info, payment_method, slip_path],
+            function(err) {
+                if (err) {
+                    db.run('ROLLBACK');
+                    res.status(500).json({ error: err.message });
+                    return;
+                }
+
+                // Update product quantity
+                db.run(
+                    'UPDATE products SET quantity = quantity - ? WHERE id = ?',
+                    [quantity_sold, product_id],
+                    function(err) {
+                        if (err) {
+                            db.run('ROLLBACK');
+                            res.status(500).json({ error: err.message });
+                            return;
+                        }
+
+                        db.run('COMMIT', (err) => {
+                            if (err) {
+                                res.status(500).json({ error: err.message });
+                            } else {
+                                // Invalidate cache
+                                dashboardCache.delete('dashboard_stats');
+                                res.json({ 
+                                    message: 'Sale recorded successfully', 
+                                    sale_id: this.lastID,
+                                    total_amount: total_amount,
+                                    sales_platform: sales_platform,
+                                    slip_path: slip_path
+                                });
+                            }
+                        });
+                    }
+                );
+            }
+        );
+    });
+});
+
+// Get dashboard statistics (cached)
+app.get('/api/dashboard', (req, res) => {
+    const cacheKey = 'dashboard_stats';
+    
+    dashboardCache.getOrFetch(cacheKey, async () => {
+        return new Promise((resolve, reject) => {
+            const stats = {};
+            
+            // Get total products
+            db.get('SELECT COUNT(*) as total FROM products', (err, row) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                stats.total_products = row.total;
+
+                // Get total sales
+                db.get('SELECT COUNT(*) as total FROM sales', (err, row) => {
+                    if (err) {
+                        reject(err);
+                        return;
+                    }
+                    stats.total_sales = row.total;
+
+                    // Get total revenue
+                    db.get('SELECT SUM(total_amount) as total FROM sales', (err, row) => {
+                        if (err) {
+                            reject(err);
+                            return;
+                        }
+                        stats.total_revenue = row.total || 0;
+
+                        // Get low stock products
+                        db.all('SELECT * FROM products WHERE quantity < 10 ORDER BY quantity ASC', (err, rows) => {
+                            if (err) {
+                                reject(err);
+                                return;
+                            }
+                            stats.low_stock_products = rows;
+
+                            // Get recent sales
+                            db.all(`
+                                SELECT s.*, p.name as product_name 
+                                FROM sales s 
+                                LEFT JOIN products p ON s.product_id = p.id 
+                                ORDER BY s.sale_date DESC 
+                                LIMIT 10
+                            `, (err, rows) => {
+                                if (err) {
+                                    reject(err);
+                                    return;
+                                }
+                                stats.recent_sales = rows;
+
+                                resolve(stats);
+                            });
+                        });
+                    });
+                });
+            });
+        });
+    }).then(stats => {
+        res.json(stats);
+    }).catch(err => {
+        res.status(500).json({ error: err.message });
+    });
+});
+
+// Get profit report
+app.get('/api/profit-report', (req, res) => {
+    const { start_date, end_date } = req.query;
+    
+    let dateFilter = '';
+    let params = [];
+    
+    if (start_date && end_date) {
+        dateFilter = 'WHERE s.sale_date BETWEEN ? AND ?';
+        params = [start_date, end_date];
+    }
+
+    const sql = `
+        SELECT 
+            p.name as product_name,
+            SUM(s.quantity_sold) as total_sold,
+            SUM(s.total_amount) as total_revenue,
+            SUM(s.quantity_sold * p.cost_price) as total_cost,
+            SUM(s.total_amount - (s.quantity_sold * p.cost_price)) as total_profit
+        FROM sales s
+        LEFT JOIN products p ON s.product_id = p.id
+        ${dateFilter}
+        GROUP BY s.product_id, p.name
+        ORDER BY total_profit DESC
+    `;
+    
+    db.all(sql, params, (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json(rows);
+        }
+    });
+});
+
+// ==================== RETURNS MANAGEMENT APIs ====================
+
+// Return Reasons Management APIs
+
+// Get all return reasons
+app.get('/api/return-reasons', (req, res) => {
+    const sql = 'SELECT * FROM return_reasons WHERE is_active = 1 ORDER BY reason_category, reason_name';
+    db.all(sql, (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json(rows);
+        }
+    });
+});
+
+// Add new return reason
+app.post('/api/return-reasons', validateReturnReason, (req, res) => {
+    const { reason_code, reason_name, reason_category } = req.body;
+
+    const sql = 'INSERT INTO return_reasons (reason_code, reason_name, reason_category) VALUES (?, ?, ?)';
+    const params = [reason_code.toUpperCase().trim(), reason_name.trim(), reason_category];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            if (err.message.includes('UNIQUE constraint failed')) {
+                return res.status(409).json({ error: 'Return reason code already exists' });
+            }
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json({ 
+                id: this.lastID, 
+                message: 'Return reason added successfully',
+                reason: { reason_code: reason_code.toUpperCase().trim(), reason_name: reason_name.trim(), reason_category }
+            });
+        }
+    });
+});
+
+// Returns Management APIs
+
+// Get all returns
+app.get('/api/returns', (req, res) => {
+    const { status, customer_name, start_date, end_date, reason } = req.query;
+    
+    let whereClause = 'WHERE 1=1';
+    let params = [];
+    
+    if (status) {
+        whereClause += ' AND r.return_status = ?';
+        params.push(status);
+    }
+    
+    if (customer_name) {
+        whereClause += ' AND r.customer_name LIKE ?';
+        params.push(`%${customer_name}%`);
+    }
+    
+    if (reason) {
+        whereClause += ' AND r.return_reason = ?';
+        params.push(reason);
+    }
+    
+    if (start_date) {
+        whereClause += ' AND r.return_date >= ?';
+        params.push(start_date);
+    }
+    
+    if (end_date) {
+        whereClause += ' AND r.return_date <= ?';
+        params.push(end_date);
+    }
+
+    const sql = `
+        SELECT r.*, 
+               e.name as processed_by_name,
+               p.name as original_product_name,
+               p.brand as product_brand,
+               p.model as product_model
+        FROM returns r
+        LEFT JOIN employees e ON r.processed_by = e.id
+        LEFT JOIN sales s ON r.original_sale_id = s.id
+        LEFT JOIN products p ON s.product_id = p.id
+        ${whereClause}
+        ORDER BY r.return_date DESC
+    `;
+    
+    db.all(sql, params, (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json(rows);
+        }
+    });
+});
+
+// Get single return
+app.get('/api/returns/:id', (req, res) => {
+    const { id } = req.params;
+    
+    const sql = `
+        SELECT r.*, 
+               e.name as processed_by_name,
+               p.name as original_product_name,
+               p.brand as product_brand,
+               p.model as product_model,
+               p.color as product_color
+        FROM returns r
+        LEFT JOIN employees e ON r.processed_by = e.id
+        LEFT JOIN sales s ON r.original_sale_id = s.id
+        LEFT JOIN products p ON s.product_id = p.id
+        WHERE r.id = ?
+    `;
+    
+    db.get(sql, [id], (err, row) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (!row) {
+            res.status(404).json({ error: 'Return not found' });
+        } else {
+            res.json(row);
+        }
+    });
+});
+
+// Add new return
+app.post('/api/returns', (req, res) => {
+    const { 
+        return_number, original_sale_id, customer_name, customer_email, customer_phone,
+        product_id, product_name, quantity, return_reason, return_condition,
+        sales_platform, notes, processed_by, slip_path
+    } = req.body;
+    
+    if (!customer_name || !return_reason || !quantity) {
+        return res.status(400).json({ error: 'Customer name, return reason, and quantity are required' });
+    }
+
+    // Generate return number if not provided
+    const finalReturnNumber = return_number || `RET-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+
+    const sql = `
+        INSERT INTO returns (
+            return_number, original_sale_id, customer_name, customer_email, customer_phone,
+            product_id, product_name, quantity, return_reason, return_condition,
+            sales_platform, notes, processed_by, slip_path
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    const params = [
+        finalReturnNumber, original_sale_id, customer_name, customer_email, customer_phone,
+        product_id, product_name, quantity, return_reason, return_condition || 'good',
+        sales_platform || 'Direct', notes, processed_by, slip_path || null
+    ];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            if (err.message.includes('UNIQUE constraint failed')) {
+                return res.status(409).json({ error: 'Return number already exists' });
+            }
+            res.status(500).json({ error: err.message });
+        } else {
+            // Add initial activity log
+            db.run(`
+                INSERT INTO return_activities (return_id, activity_type, activity_description, performed_by) 
+                VALUES (?, ?, ?, ?)
+            `, [this.lastID, 'created', `Return request created by ${customer_name}`, processed_by]);
+            
+            res.json({ 
+                id: this.lastID, 
+                message: 'Return request created successfully',
+                return_number: finalReturnNumber
+            });
+        }
+    });
+});
+
+// Update return
+app.put('/api/returns/:id', (req, res) => {
+    const { id } = req.params;
+    const { 
+        customer_name, customer_email, customer_phone, product_id, product_name,
+        quantity, return_reason, return_condition, return_status, refund_amount,
+        refund_method, notes, processed_by, processed_date, restocked
+    } = req.body;
+
+    const sql = `
+        UPDATE returns 
+        SET customer_name = ?, customer_email = ?, customer_phone = ?, product_id = ?, product_name = ?,
+            quantity = ?, return_reason = ?, return_condition = ?, return_status = ?, refund_amount = ?,
+            refund_method = ?, sales_platform = ?, notes = ?, processed_by = ?, processed_date = ?, restocked = ?,
+            updated_date = CURRENT_TIMESTAMP 
+        WHERE id = ?
+    `;
+    const params = [
+        customer_name, customer_email, customer_phone, product_id, product_name,
+        quantity, return_reason, return_condition, return_status, refund_amount,
+        refund_method, sales_platform, notes, processed_by, processed_date, restocked, id
+    ];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (this.changes === 0) {
+            res.status(404).json({ error: 'Return not found' });
+        } else {
+            res.json({ message: 'Return updated successfully' });
+        }
+    });
+});
+
+// Delete return (soft delete by changing status)
+app.delete('/api/returns/:id', (req, res) => {
+    const { id } = req.params;
+    
+    // Update status to 'cancelled' instead of deleting
+    db.run('UPDATE returns SET return_status = "cancelled", updated_date = CURRENT_TIMESTAMP WHERE id = ?', [id], function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (this.changes === 0) {
+            res.status(404).json({ error: 'Return not found' });
+        } else {
+            // Add cancellation activity
+            db.run(`
+                INSERT INTO return_activities (return_id, activity_type, activity_description, performed_by) 
+                VALUES (?, ?, ?, ?)
+            `, [id, 'cancelled', 'Return cancelled by user', null]);
+            
+            res.json({ message: 'Return cancelled successfully' });
+        }
+    });
+});
+
+// Return Processing APIs
+
+// Approve return
+app.post('/api/returns/:id/approve', (req, res) => {
+    const { id } = req.params;
+    const { processed_by, refund_amount, refund_method, notes } = req.body;
+    
+    if (!processed_by) {
+        return res.status(400).json({ error: 'Processed by employee ID is required' });
+    }
+
+    const sql = `
+        UPDATE returns 
+        SET return_status = 'approved', processed_by = ?, processed_date = CURRENT_TIMESTAMP,
+            refund_amount = ?, refund_method = ?, notes = ?, updated_date = CURRENT_TIMESTAMP
+        WHERE id = ?
+    `;
+    const params = [processed_by, refund_amount, refund_method, notes, id];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (this.changes === 0) {
+            res.status(404).json({ error: 'Return not found' });
+        } else {
+            // Add approval activity
+            db.run(`
+                INSERT INTO return_activities (return_id, activity_type, activity_description, performed_by, notes) 
+                VALUES (?, ?, ?, ?, ?)
+            `, [id, 'status_updated', 'Return approved', processed_by, notes || 'Return approved for processing']);
+            
+            res.json({ message: 'Return approved successfully' });
+        }
+    });
+});
+
+// Reject return
+app.post('/api/returns/:id/reject', (req, res) => {
+    const { id } = req.params;
+    const { processed_by, notes } = req.body;
+    
+    if (!processed_by) {
+        return res.status(400).json({ error: 'Processed by employee ID is required' });
+    }
+
+    const sql = `
+        UPDATE returns 
+        SET return_status = 'rejected', processed_by = ?, processed_date = CURRENT_TIMESTAMP,
+            refund_amount = 0, refund_method = NULL, updated_date = CURRENT_TIMESTAMP
+        WHERE id = ?
+    `;
+    const params = [processed_by, id];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (this.changes === 0) {
+            res.status(404).json({ error: 'Return not found' });
+        } else {
+            // Add rejection activity
+            db.run(`
+                INSERT INTO return_activities (return_id, activity_type, activity_description, performed_by, notes) 
+                VALUES (?, ?, ?, ?, ?)
+            `, [id, 'status_updated', 'Return rejected', processed_by, notes || 'Return rejected']);
+            
+            res.json({ message: 'Return rejected successfully' });
+        }
+    });
+});
+
+// Process refund
+app.post('/api/returns/:id/refund', (req, res) => {
+    const { id } = req.params;
+    const { refund_amount, refund_method, processed_by } = req.body;
+    
+    if (!refund_amount || !refund_method || !processed_by) {
+        return res.status(400).json({ error: 'Refund amount, method, and processed by employee are required' });
+    }
+
+    const sql = `
+        UPDATE returns 
+        SET return_status = 'refunded', processed_by = ?, processed_date = CURRENT_TIMESTAMP,
+            refund_amount = ?, refund_method = ?, updated_date = CURRENT_TIMESTAMP
+        WHERE id = ?
+    `;
+    const params = [processed_by, refund_amount, refund_method, id];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (this.changes === 0) {
+            res.status(404).json({ error: 'Return not found' });
+        } else {
+            // Add refund activity
+            db.run(`
+                INSERT INTO return_activities (return_id, activity_type, activity_description, performed_by, notes) 
+                VALUES (?, ?, ?, ?, ?)
+            `, [id, 'refunded', `Refund of $${refund_amount} processed via ${refund_method}`, processed_by, 'Refund processed']);
+            
+            res.json({ message: 'Refund processed successfully' });
+        }
+    });
+});
+
+// Restock return
+app.post('/api/returns/:id/restock', (req, res) => {
+    const { id } = req.params;
+    const { processed_by } = req.body;
+    
+    if (!processed_by) {
+        return res.status(400).json({ error: 'Processed by employee ID is required' });
+    }
+
+    // First get the return details
+    db.get('SELECT product_id, quantity FROM returns WHERE id = ?', [id], (err, returnRow) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (!returnRow) {
+            res.status(404).json({ error: 'Return not found' });
+        } else {
+            // Update return status and inventory
+            db.serialize(() => {
+                db.run('BEGIN TRANSACTION');
+                
+                // Update return status
+                db.run(`
+                    UPDATE returns 
+                    SET return_status = 'processed', restocked = 1, processed_by = ?, 
+                        processed_date = CURRENT_TIMESTAMP, updated_date = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `, [processed_by, id], (err) => {
+                    if (err) {
+                        db.run('ROLLBACK');
+                        res.status(500).json({ error: err.message });
+                        return;
+                    }
+
+                    // Restock inventory if product exists
+                    if (returnRow.product_id) {
+                        db.run(`
+                            UPDATE products 
+                            SET quantity = quantity + ?, updated_date = CURRENT_TIMESTAMP 
+                            WHERE id = ?
+                        `, [returnRow.quantity, returnRow.product_id], (err) => {
+                            if (err) {
+                                db.run('ROLLBACK');
+                                res.status(500).json({ error: err.message });
+                                return;
+                            }
+
+                            db.run('COMMIT', (err) => {
+                                if (err) {
+                                    res.status(500).json({ error: err.message });
+                                    return;
+                                }
+
+                                // Add restocking activity
+                                db.run(`
+                                    INSERT INTO return_activities (return_id, activity_type, activity_description, performed_by, notes) 
+                                    VALUES (?, ?, ?, ?, ?)
+                                `, [id, 'restocked', `Item restocked to inventory (+${returnRow.quantity} units)`, processed_by, 'Inventory updated']);
+                                
+                                res.json({ message: 'Return processed and restocked successfully' });
+                            });
+                        });
+                    } else {
+                        db.run('COMMIT', (err) => {
+                            if (err) {
+                                res.status(500).json({ error: err.message });
+                                return;
+                            }
+                            
+                            res.json({ message: 'Return processed successfully' });
+                        });
+                    }
+                });
+            });
+        }
+    });
+});
+
+// Get return activities
+app.get('/api/return-activities', (req, res) => {
+    const { return_id } = req.query;
+    
+    let whereClause = 'WHERE 1=1';
+    let params = [];
+    
+    if (return_id) {
+        whereClause += ' AND ra.return_id = ?';
+        params.push(return_id);
+    }
+
+    const sql = `
+        SELECT ra.*, 
+               e.name as performed_by_name
+        FROM return_activities ra
+        LEFT JOIN employees e ON ra.performed_by = e.id
+        ${whereClause}
+        ORDER BY ra.activity_date DESC, ra.id DESC
+    `;
+    
+    db.all(sql, params, (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json(rows);
+        }
+    });
+});
+
+// Add return activity
+app.post('/api/return-activities', (req, res) => {
+    const { return_id, activity_type, activity_description, performed_by, notes } = req.body;
+    
+    if (!return_id || !activity_type || !activity_description) {
+        return res.status(400).json({ error: 'Return ID, activity type, and description are required' });
+    }
+
+    const sql = `
+        INSERT INTO return_activities (return_id, activity_type, activity_description, performed_by, notes) 
+        VALUES (?, ?, ?, ?, ?)
+    `;
+    const params = [return_id, activity_type, activity_description, performed_by, notes];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json({ 
+                id: this.lastID, 
+                message: 'Return activity logged successfully',
+                activity: { return_id, activity_type, activity_description, performed_by, notes }
+            });
+        }
+    });
+});
+
+// Returns Analytics APIs
+
+// Get returns analytics
+app.get('/api/returns-analytics', (req, res) => {
+    const { start_date, end_date } = req.query;
+    
+    let dateFilter = '';
+    let params = [];
+    
+    if (start_date && end_date) {
+        dateFilter = 'WHERE r.return_date BETWEEN ? AND ?';
+        params = [start_date, end_date];
+    }
+
+    const sql = `
+        SELECT 
+            r.return_reason,
+            r.return_status,
+            COUNT(*) as return_count,
+            SUM(r.refund_amount) as total_refunds,
+            AVG(r.refund_amount) as avg_refund_amount,
+            COUNT(CASE WHEN r.return_condition = 'excellent' THEN 1 END) as excellent_condition,
+            COUNT(CASE WHEN r.return_condition = 'good' THEN 1 END) as good_condition,
+            COUNT(CASE WHEN r.return_condition = 'fair' THEN 1 END) as fair_condition,
+            COUNT(CASE WHEN r.return_condition = 'damaged' THEN 1 END) as damaged_condition,
+            SUM(CASE WHEN r.restocked = 1 THEN 1 ELSE 0 END) as restocked_items,
+            SUM(r.quantity) as total_quantity_returned
+        FROM returns r
+        ${dateFilter}
+        GROUP BY r.return_reason, r.return_status
+        ORDER BY return_count DESC
+    `;
+    
+    db.all(sql, params, (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json(rows);
+        }
+    });
+});
+
+// Get returns summary
+app.get('/api/returns-summary', (req, res) => {
+    const stats = {};
+    
+    // Get total returns
+    db.get('SELECT COUNT(*) as total FROM returns', (err, row) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        stats.total_returns = row.total;
+
+        // Get pending returns
+        db.get('SELECT COUNT(*) as total FROM returns WHERE return_status = "pending"', (err, row) => {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            stats.pending_returns = row.total;
+
+            // Get approved returns
+            db.get('SELECT COUNT(*) as total FROM returns WHERE return_status = "approved"', (err, row) => {
+                if (err) {
+                    res.status(500).json({ error: err.message });
+                    return;
+                }
+                stats.approved_returns = row.total;
+
+                // Get total refund amount
+                db.get('SELECT SUM(refund_amount) as total FROM returns WHERE refund_amount IS NOT NULL', (err, row) => {
+                    if (err) {
+                        res.status(500).json({ error: err.message });
+                        return;
+                    }
+                    stats.total_refund_amount = row.total || 0;
+
+                    // Get returns by reason
+                    db.all(`
+                        SELECT return_reason, COUNT(*) as count
+                        FROM returns
+                        GROUP BY return_reason
+                        ORDER BY count DESC
+                        LIMIT 5
+                    `, (err, rows) => {
+                        if (err) {
+                            res.status(500).json({ error: err.message });
+                            return;
+                        }
+                        stats.top_return_reasons = rows;
+
+                        // Get recent returns
+                        db.all(`
+                            SELECT r.*, p.name as product_name
+                            FROM returns r
+                            LEFT JOIN sales s ON r.original_sale_id = s.id
+                            LEFT JOIN products p ON s.product_id = p.id
+                            ORDER BY r.created_date DESC
+                            LIMIT 10
+                        `, (err, rows) => {
+                            if (err) {
+                                res.status(500).json({ error: err.message });
+                                return;
+                            }
+                            stats.recent_returns = rows;
+
+                            res.json(stats);
+                        });
+                    });
+                });
+            });
+        });
+    });
+});
+
+// ==================== EMPLOYEE WORK TRACKER APIs ====================
+
+// Employee Management APIs
+
+// Get all employees
+app.get('/api/employees', (req, res) => {
+    const sql = `
+        SELECT e.*, 
+               COUNT(et.id) as total_tasks,
+               COUNT(CASE WHEN et.status = 'completed' THEN 1 END) as completed_tasks,
+               COUNT(CASE WHEN et.status = 'in_progress' THEN 1 END) as active_tasks
+        FROM employees e
+        LEFT JOIN employee_tasks et ON e.id = et.employee_id
+        WHERE e.is_active = 1
+        GROUP BY e.id
+        ORDER BY e.created_date DESC
+    `;
+    
+    db.all(sql, (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json(rows);
+        }
+    });
+});
+
+// Get single employee
+app.get('/api/employees/:id', (req, res) => {
+    const { id } = req.params;
+    const sql = `
+        SELECT e.*, 
+               COUNT(et.id) as total_tasks,
+               COUNT(CASE WHEN et.status = 'completed' THEN 1 END) as completed_tasks,
+               COUNT(CASE WHEN et.status = 'in_progress' THEN 1 END) as active_tasks
+        FROM employees e
+        LEFT JOIN employee_tasks et ON e.id = et.employee_id
+        WHERE e.id = ? AND e.is_active = 1
+        GROUP BY e.id
+    `;
+    
+    db.get(sql, [id], (err, row) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (!row) {
+            res.status(404).json({ error: 'Employee not found' });
+        } else {
+            res.json(row);
+        }
+    });
+});
+
+// Add new employee
+app.post('/api/employees', validateEmployee, (req, res) => {
+    const { name, email, phone, role, hire_date, salary, performance_rating } = req.body;
+
+    const sql = `
+        INSERT INTO employees (name, email, phone, role, hire_date, salary, performance_rating) 
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
+    const params = [name, email, phone, role || 'employee', hire_date || null, salary || null, performance_rating || 0];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            if (err.message.includes('UNIQUE constraint failed')) {
+                return res.status(409).json({ error: 'Employee with this email already exists' });
+            }
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json({ 
+                id: this.lastID, 
+                message: 'Employee added successfully',
+                employee: { name, email, phone, role, hire_date, salary, performance_rating }
+            });
+        }
+    });
+});
+
+// Update employee
+app.put('/api/employees/:id', (req, res) => {
+    const { id } = req.params;
+    const { name, email, phone, role, hire_date, salary, performance_rating, is_active } = req.body;
+
+    const sql = `
+        UPDATE employees 
+        SET name = ?, email = ?, phone = ?, role = ?, hire_date = ?, 
+            salary = ?, performance_rating = ?, is_active = ?, updated_date = CURRENT_TIMESTAMP 
+        WHERE id = ?
+    `;
+    const params = [name, email, phone, role, hire_date, salary, performance_rating, is_active, id];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            if (err.message.includes('UNIQUE constraint failed')) {
+                return res.status(409).json({ error: 'Employee with this email already exists' });
+            }
+            res.status(500).json({ error: err.message });
+        } else if (this.changes === 0) {
+            res.status(404).json({ error: 'Employee not found' });
+        } else {
+            res.json({ message: 'Employee updated successfully' });
+        }
+    });
+});
+
+// Delete employee (soft delete)
+app.delete('/api/employees/:id', (req, res) => {
+    const { id } = req.params;
+    
+    db.run('UPDATE employees SET is_active = 0 WHERE id = ?', [id], function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (this.changes === 0) {
+            res.status(404).json({ error: 'Employee not found' });
+        } else {
+            res.json({ message: 'Employee deleted successfully' });
+        }
+    });
+});
+
+// Task Management APIs
+
+// Get all employee tasks
+app.get('/api/employee-tasks', (req, res) => {
+    const { employee_id, status, platform } = req.query;
+    
+    let whereClause = 'WHERE 1=1';
+    let params = [];
+    
+    if (employee_id) {
+        whereClause += ' AND et.employee_id = ?';
+        params.push(employee_id);
+    }
+    
+    if (status) {
+        whereClause += ' AND et.status = ?';
+        params.push(status);
+    }
+    
+    if (platform) {
+        // Handle both JSON arrays and single platform strings
+        whereClause += ' AND (et.platform = ? OR et.platform LIKE ?)';
+        params.push(platform, `["${platform}"%`, `%, "${platform}"%`, `%, "${platform}"]%`);
+    }
+
+    const sql = `
+        SELECT et.*, 
+               e.name as employee_name, 
+               e.email as employee_email,
+               p.name as product_name,
+               p.brand,
+               p.model,
+               p.color as product_color
+        FROM employee_tasks et
+        LEFT JOIN employees e ON et.employee_id = e.id
+        LEFT JOIN products p ON et.product_id = p.id
+        ${whereClause}
+        ORDER BY et.assigned_date DESC
+    `;
+    
+    db.all(sql, params, (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json(rows);
+        }
+    });
+});
+
+// Get single task
+app.get('/api/employee-tasks/:id', (req, res) => {
+    const { id } = req.params;
+    
+    const sql = `
+        SELECT et.*, 
+               e.name as employee_name, 
+               e.email as employee_email,
+               p.name as product_name,
+               p.brand,
+               p.model,
+               p.color as product_color
+        FROM employee_tasks et
+        LEFT JOIN employees e ON et.employee_id = e.id
+        LEFT JOIN products p ON et.product_id = p.id
+        WHERE et.id = ?
+    `;
+    
+    db.get(sql, [id], (err, row) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (!row) {
+            res.status(404).json({ error: 'Task not found' });
+        } else {
+            res.json(row);
+        }
+    });
+});
+
+// Add new task
+app.post('/api/employee-tasks', validateEmployeeTask, (req, res) => {
+    const { employee_id, product_id, platform, product_url, color, due_date, priority, notes, estimated_hours } = req.body;
+
+    // Handle both single platform (string) and multiple platforms (array)
+    let platformValue;
+    if (Array.isArray(platform)) {
+        platformValue = JSON.stringify(platform);
+    } else {
+        platformValue = platform;
+    }
+
+    const sql = `
+        INSERT INTO employee_tasks (employee_id, product_id, platform, product_url, color, due_date, priority, notes, estimated_hours) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    const params = [employee_id, product_id, platformValue, product_url, color, due_date, priority || 'medium', notes, estimated_hours || 0];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json({ 
+                id: this.lastID, 
+                message: 'Task assigned successfully',
+                task: { employee_id, product_id, platform, product_url, color, due_date, priority, notes, estimated_hours }
+            });
+        }
+    });
+});
+
+// Update task
+app.put('/api/employee-tasks/:id', (req, res) => {
+    const { id } = req.params;
+    const { employee_id, product_id, platform, product_url, color, due_date, status, priority, notes, estimated_hours, completed_hours } = req.body;
+
+    // Handle both single platform (string) and multiple platforms (array)
+    let platformValue;
+    if (Array.isArray(platform)) {
+        platformValue = JSON.stringify(platform);
+    } else {
+        platformValue = platform;
+    }
+
+    const sql = `
+        UPDATE employee_tasks 
+        SET employee_id = ?, product_id = ?, platform = ?, product_url = ?, color = ?, 
+            due_date = ?, status = ?, priority = ?, notes = ?, estimated_hours = ?, 
+            completed_hours = ?, updated_date = CURRENT_TIMESTAMP 
+        WHERE id = ?
+    `;
+    const params = [employee_id, product_id, platformValue, product_url, color, due_date, status, priority, notes, estimated_hours, completed_hours, id];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (this.changes === 0) {
+            res.status(404).json({ error: 'Task not found' });
+        } else {
+            res.json({ message: 'Task updated successfully' });
+        }
+    });
+});
+
+// Delete task
+app.delete('/api/employee-tasks/:id', (req, res) => {
+    const { id } = req.params;
+    
+    // First delete related activities
+    db.run('DELETE FROM task_activities WHERE task_id = ?', [id], (err) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        
+        // Then delete related listings
+        db.run('DELETE FROM platform_listings WHERE task_id = ?', [id], (err) => {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            
+            // Finally delete the task
+            db.run('DELETE FROM employee_tasks WHERE id = ?', [id], function(err) {
+                if (err) {
+                    res.status(500).json({ error: err.message });
+                } else if (this.changes === 0) {
+                    res.status(404).json({ error: 'Task not found' });
+                } else {
+                    res.json({ message: 'Task deleted successfully' });
+                }
+            });
+        });
+    });
+});
+
+// Activity Tracking APIs
+
+// Get task activities
+app.get('/api/task-activities', (req, res) => {
+    const { task_id, employee_id, start_date, end_date } = req.query;
+    
+    let whereClause = 'WHERE 1=1';
+    let params = [];
+    
+    if (task_id) {
+        whereClause += ' AND ta.task_id = ?';
+        params.push(task_id);
+    }
+    
+    if (employee_id) {
+        whereClause += ' AND ta.employee_id = ?';
+        params.push(employee_id);
+    }
+    
+    if (start_date) {
+        whereClause += ' AND ta.activity_date >= ?';
+        params.push(start_date);
+    }
+    
+    if (end_date) {
+        whereClause += ' AND ta.activity_date <= ?';
+        params.push(end_date);
+    }
+
+    const sql = `
+        SELECT ta.*, 
+               e.name as employee_name,
+               et.platform,
+               et.product_url,
+               p.name as product_name
+        FROM task_activities ta
+        LEFT JOIN employees e ON ta.employee_id = e.id
+        LEFT JOIN employee_tasks et ON ta.task_id = et.id
+        LEFT JOIN products p ON et.product_id = p.id
+        ${whereClause}
+        ORDER BY ta.activity_date DESC, ta.created_time DESC
+    `;
+    
+    db.all(sql, params, (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json(rows);
+        }
+    });
+});
+
+// Add activity log
+app.post('/api/task-activities', (req, res) => {
+    const { task_id, employee_id, activity_date, hours_worked, status_update, description } = req.body;
+    
+    if (!task_id || !employee_id || !description) {
+        return res.status(400).json({ error: 'Task ID, Employee ID, and description are required' });
+    }
+
+    const sql = `
+        INSERT INTO task_activities (task_id, employee_id, activity_date, hours_worked, status_update, description) 
+        VALUES (?, ?, ?, ?, ?, ?)
+    `;
+    const params = [task_id, employee_id, activity_date || new Date().toISOString().split('T')[0], hours_worked || 0, status_update, description];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            // Update task's completed hours
+            if (hours_worked && hours_worked > 0) {
+                db.run(
+                    'UPDATE employee_tasks SET completed_hours = completed_hours + ? WHERE id = ?',
+                    [hours_worked, task_id],
+                    (updateErr) => {
+                        if (updateErr) {
+                            console.error('Error updating completed hours:', updateErr);
+                        }
+                    }
+                );
+            }
+            
+            res.json({ 
+                id: this.lastID, 
+                message: 'Activity logged successfully',
+                activity: { task_id, employee_id, activity_date, hours_worked, status_update, description }
+            });
+        }
+    });
+});
+
+// Update activity
+app.put('/api/task-activities/:id', (req, res) => {
+    const { id } = req.params;
+    const { activity_date, hours_worked, status_update, description } = req.body;
+
+    const sql = `
+        UPDATE task_activities 
+        SET activity_date = ?, hours_worked = ?, status_update = ?, description = ? 
+        WHERE id = ?
+    `;
+    const params = [activity_date, hours_worked, status_update, description, id];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (this.changes === 0) {
+            res.status(404).json({ error: 'Activity not found' });
+        } else {
+            res.json({ message: 'Activity updated successfully' });
+        }
+    });
+});
+
+// Delete activity
+app.delete('/api/task-activities/:id', (req, res) => {
+    const { id } = req.params;
+    
+    db.run('DELETE FROM task_activities WHERE id = ?', [id], function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (this.changes === 0) {
+            res.status(404).json({ error: 'Activity not found' });
+        } else {
+            res.json({ message: 'Activity deleted successfully' });
+        }
+    });
+});
+
+// Platform Listings APIs
+
+// Get platform listings
+app.get('/api/platform-listings', (req, res) => {
+    const { employee_id, platform, listing_status } = req.query;
+    
+    let whereClause = 'WHERE 1=1';
+    let params = [];
+    
+    if (employee_id) {
+        whereClause += ' AND pl.employee_id = ?';
+        params.push(employee_id);
+    }
+    
+    if (platform) {
+        whereClause += ' AND pl.platform = ?';
+        params.push(platform);
+    }
+    
+    if (listing_status) {
+        whereClause += ' AND pl.listing_status = ?';
+        params.push(listing_status);
+    }
+
+    const sql = `
+        SELECT pl.*, 
+               e.name as employee_name,
+               et.product_url,
+               et.color,
+               p.name as product_name,
+               p.brand,
+               p.model
+        FROM platform_listings pl
+        LEFT JOIN employees e ON pl.employee_id = e.id
+        LEFT JOIN employee_tasks et ON pl.task_id = et.id
+        LEFT JOIN products p ON et.product_id = p.id
+        ${whereClause}
+        ORDER BY pl.last_updated DESC
+    `;
+    
+    db.all(sql, params, (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json(rows);
+        }
+    });
+});
+
+// Add platform listing
+app.post('/api/platform-listings', (req, res) => {
+    const { task_id, employee_id, platform, listing_url, listing_status, sales_count, revenue, views_count } = req.body;
+    
+    if (!task_id || !employee_id || !platform) {
+        return res.status(400).json({ error: 'Task ID, Employee ID, and platform are required' });
+    }
+
+    const sql = `
+        INSERT INTO platform_listings (task_id, employee_id, platform, listing_url, listing_status, sales_count, revenue, views_count) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    const params = [task_id, employee_id, platform, listing_url, listing_status || 'draft', sales_count || 0, revenue || 0, views_count || 0];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json({ 
+                id: this.lastID, 
+                message: 'Platform listing added successfully',
+                listing: { task_id, employee_id, platform, listing_url, listing_status, sales_count, revenue, views_count }
+            });
+        }
+    });
+});
+
+// Update platform listing
+app.put('/api/platform-listings/:id', (req, res) => {
+    const { id } = req.params;
+    const { listing_url, listing_status, sales_count, revenue, views_count } = req.body;
+
+    const sql = `
+        UPDATE platform_listings 
+        SET listing_url = ?, listing_status = ?, sales_count = ?, revenue = ?, views_count = ?, last_updated = CURRENT_TIMESTAMP 
+        WHERE id = ?
+    `;
+    const params = [listing_url, listing_status, sales_count, revenue, views_count, id];
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (this.changes === 0) {
+            res.status(404).json({ error: 'Listing not found' });
+        } else {
+            res.json({ message: 'Listing updated successfully' });
+        }
+    });
+});
+
+// Delete platform listing
+app.delete('/api/platform-listings/:id', (req, res) => {
+    const { id } = req.params;
+    
+    db.run('DELETE FROM platform_listings WHERE id = ?', [id], function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else if (this.changes === 0) {
+            res.status(404).json({ error: 'Listing not found' });
+        } else {
+            res.json({ message: 'Listing deleted successfully' });
+        }
+    });
+});
+
+// Analytics and Reporting APIs
+
+// Get employee performance report
+app.get('/api/employee-performance', (req, res) => {
+    const { start_date, end_date, employee_id } = req.query;
+    
+    let dateFilter = '';
+    let params = [];
+    
+    if (start_date && end_date) {
+        dateFilter = 'AND ta.activity_date BETWEEN ? AND ?';
+        params = [start_date, end_date];
+    }
+    
+    let employeeFilter = '';
+    if (employee_id) {
+        employeeFilter = 'AND ta.employee_id = ?';
+        params.push(employee_id);
+    }
+
+    const sql = `
+        SELECT 
+            e.id as employee_id,
+            e.name as employee_name,
+            e.email,
+            e.role,
+            e.performance_rating,
+            COUNT(DISTINCT et.id) as total_tasks,
+            COUNT(CASE WHEN et.status = 'completed' THEN 1 END) as completed_tasks,
+            COUNT(CASE WHEN et.status = 'in_progress' THEN 1 END) as active_tasks,
+            COUNT(CASE WHEN et.status = 'pending' THEN 1 END) as pending_tasks,
+            SUM(ta.hours_worked) as total_hours_worked,
+            AVG(ta.hours_worked) as avg_daily_hours,
+            COUNT(ta.id) as total_activities,
+            SUM(pl.sales_count) as total_sales,
+            SUM(pl.revenue) as total_revenue,
+            SUM(pl.views_count) as total_views
+        FROM employees e
+        LEFT JOIN employee_tasks et ON e.id = et.employee_id
+        LEFT JOIN task_activities ta ON e.id = ta.employee_id
+        LEFT JOIN platform_listings pl ON e.id = pl.employee_id
+        WHERE e.is_active = 1 ${employeeFilter}
+        GROUP BY e.id, e.name, e.email, e.role, e.performance_rating
+        ORDER BY total_revenue DESC, completed_tasks DESC
+    `;
+    
+    db.all(sql, params, (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            // Calculate additional metrics
+            const enhancedRows = rows.map(row => {
+                const completionRate = row.total_tasks > 0 ? (row.completed_tasks / row.total_tasks * 100) : 0;
+                return {
+                    ...row,
+                    completion_rate: Math.round(completionRate * 100) / 100,
+                    revenue_per_hour: row.total_hours_worked > 0 ? Math.round((row.total_revenue / row.total_hours_worked) * 100) / 100 : 0
+                };
+            });
+            res.json(enhancedRows);
+        }
+    });
+});
+
+// Get task analytics
+app.get('/api/task-analytics', (req, res) => {
+    const { start_date, end_date, platform, employee_id } = req.query;
+    
+    let dateFilter = '';
+    let params = [];
+    
+    if (start_date && end_date) {
+        dateFilter = 'WHERE et.assigned_date BETWEEN ? AND ?';
+        params = [start_date, end_date];
+    }
+    
+    let platformFilter = '';
+    if (platform) {
+        platformFilter = dateFilter ? ' AND et.platform = ?' : 'WHERE et.platform = ?';
+        params.push(platform);
+    }
+    
+    let employeeFilter = '';
+    if (employee_id) {
+        const whereClause = dateFilter || platformFilter ? ' AND' : 'WHERE';
+        employeeFilter = `${whereClause} et.employee_id = ?`;
+        params.push(employee_id);
+    }
+
+    const sql = `
+        SELECT 
+            et.platform,
+            et.status,
+            COUNT(*) as task_count,
+            AVG(et.estimated_hours) as avg_estimated_hours,
+            AVG(et.completed_hours) as avg_completed_hours,
+            SUM(et.completed_hours) as total_completed_hours,
+            COUNT(CASE WHEN et.status = 'completed' THEN 1 END) as completed_count,
+            COUNT(CASE WHEN et.status = 'in_progress' THEN 1 END) as in_progress_count,
+            COUNT(CASE WHEN et.status = 'pending' THEN 1 END) as pending_count,
+            SUM(pl.sales_count) as total_sales,
+            SUM(pl.revenue) as total_revenue,
+            AVG(pl.views_count) as avg_views
+        FROM employee_tasks et
+        LEFT JOIN platform_listings pl ON et.id = pl.task_id
+        ${dateFilter}${platformFilter}${employeeFilter}
+        GROUP BY et.platform, et.status
+        ORDER BY et.platform, et.status
+    `;
+    
+    db.all(sql, params, (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json(rows);
+        }
+    });
+});
+
+// Get platform performance
+app.get('/api/platform-performance', (req, res) => {
+    const { start_date, end_date } = req.query;
+    
+    let dateFilter = '';
+    let params = [];
+    
+    if (start_date && end_date) {
+        dateFilter = 'WHERE pl.last_updated BETWEEN ? AND ?';
+        params = [start_date, end_date];
+    }
+
+    const sql = `
+        SELECT 
+            pl.platform,
+            COUNT(*) as total_listings,
+            COUNT(CASE WHEN pl.listing_status = 'published' THEN 1 END) as published_listings,
+            COUNT(CASE WHEN pl.listing_status = 'draft' THEN 1 END) as draft_listings,
+            COUNT(CASE WHEN pl.listing_status = 'pending_approval' THEN 1 END) as pending_listings,
+            COUNT(CASE WHEN pl.listing_status = 'rejected' THEN 1 END) as rejected_listings,
+            SUM(pl.sales_count) as total_sales,
+            SUM(pl.revenue) as total_revenue,
+            SUM(pl.views_count) as total_views,
+            AVG(pl.sales_count) as avg_sales_per_listing,
+            AVG(pl.revenue) as avg_revenue_per_listing,
+            AVG(pl.views_count) as avg_views_per_listing,
+            COUNT(DISTINCT pl.employee_id) as active_employees
+        FROM platform_listings pl
+        ${dateFilter}
+        GROUP BY pl.platform
+        ORDER BY total_revenue DESC
+    `;
+    
+    db.all(sql, params, (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json(rows);
+        }
+    });
+});
+
+// Get dashboard stats for employees
+app.get('/api/employee-dashboard', (req, res) => {
+    const stats = {};
+    
+    // Get total active employees
+    db.get('SELECT COUNT(*) as total FROM employees WHERE is_active = 1', (err, row) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        stats.total_employees = row.total;
+
+        // Get active tasks
+        db.get('SELECT COUNT(*) as total FROM employee_tasks WHERE status = "in_progress"', (err, row) => {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            stats.active_tasks = row.total;
+
+            // Get completed tasks today
+            db.get('SELECT COUNT(*) as total FROM employee_tasks WHERE status = "completed" AND DATE(updated_date) = DATE("now")', (err, row) => {
+                if (err) {
+                    res.status(500).json({ error: err.message });
+                    return;
+                }
+                stats.completed_today = row.total;
+
+                // Get total revenue from listings
+                db.get('SELECT SUM(revenue) as total FROM platform_listings', (err, row) => {
+                    if (err) {
+                        res.status(500).json({ error: err.message });
+                        return;
+                    }
+                    stats.total_revenue = row.total || 0;
+
+                    // Get recent activities
+                    db.all(`
+                        SELECT ta.*, e.name as employee_name, et.platform
+                        FROM task_activities ta
+                        LEFT JOIN employees e ON ta.employee_id = e.id
+                        LEFT JOIN employee_tasks et ON ta.task_id = et.id
+                        ORDER BY ta.created_time DESC
+                        LIMIT 10
+                    `, (err, rows) => {
+                        if (err) {
+                            res.status(500).json({ error: err.message });
+                            return;
+                        }
+                        stats.recent_activities = rows;
+
+                        // Get top performing employees
+                        db.all(`
+                            SELECT e.name, SUM(pl.revenue) as total_revenue, COUNT(et.id) as completed_tasks
+                            FROM employees e
+                            LEFT JOIN employee_tasks et ON e.id = et.employee_id AND et.status = 'completed'
+                            LEFT JOIN platform_listings pl ON e.id = pl.employee_id
+                            WHERE e.is_active = 1
+                            GROUP BY e.id, e.name
+                            ORDER BY total_revenue DESC
+                            LIMIT 5
+                        `, (err, rows) => {
+                            if (err) {
+                                res.status(500).json({ error: err.message });
+                                return;
+                            }
+                            stats.top_employees = rows;
+
+                            res.json(stats);
+                        });
+                    });
+                });
+            });
+        });
+    });
+});
+
+// Serve main page
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Error handling middleware
+app.use(errorHandler);
+
+// Start server
+app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+});
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+    db.close((err) => {
+        if (err) {
+            console.error(err.message);
+        }
+        console.log('Database connection closed.');
+        process.exit(0);
+    });
+});

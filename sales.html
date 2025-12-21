@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales - Mobile Cover Inventory Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="index.html">
+                <i class="fas fa-mobile-alt me-2"></i>
+                Mobile Cover Inventory
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.html">
+                            <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="products.html">
+                            <i class="fas fa-boxes me-1"></i>Products
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="add-product.html">
+                            <i class="fas fa-plus me-1"></i>Add Product
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="sales.html">
+                            <i class="fas fa-shopping-cart me-1"></i>Sales
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="reports.html">
+                            <i class="fas fa-chart-bar me-1"></i>Reports
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- Page Header -->
+        <div class="row">
+            <div class="col-12">
+                <h1 class="page-title">
+                    <i class="fas fa-shopping-cart me-2"></i>Sales Management
+                </h1>
+                <p class="text-muted">Record and track your mobile cover sales</p>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Quick Sale Form -->
+            <div class="col-lg-4">
+                <div class="card shadow">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">
+                            <i class="fas fa-plus me-2"></i>Record New Sale
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <form id="quickSaleForm">
+                            <div class="mb-3">
+                                <label for="saleProduct" class="form-label">
+                                    <i class="fas fa-box me-1"></i>Select Product *
+                                </label>
+                                <select class="form-control" id="saleProduct" name="product_id" required>
+                                    <option value="">Choose a product...</option>
+                                </select>
+                                <div class="invalid-feedback">
+                                    Please select a product.
+                                </div>
+                            </div>
+
+                            <div id="productInfo" class="alert alert-info" style="display: none;">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <small><strong>Available:</strong> <span id="availableStock">0</span></small>
+                                    </div>
+                                    <div class="col-6">
+                                        <small><strong>Price:</strong> $<span id="productPrice">0.00</span></small>
+                                    </div>
+                                </div>
+                                <div class="row mt-2">
+                                    <div class="col-6">
+                                        <small><strong>Cost:</strong> $<span id="productCost">0.00</span></small>
+                                    </div>
+                                    <div class="col-6">
+                                        <small><strong>Profit:</strong> $<span id="productProfit">0.00</span></small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="saleQuantity" class="form-label">
+                                    <i class="fas fa-cubes me-1"></i>Quantity *
+                                </label>
+                                <input type="number" class="form-control" id="saleQuantity" name="quantity_sold" 
+                                       min="1" value="1" required>
+                                <div class="invalid-feedback">
+                                    Please enter a valid quantity.
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="salePrice" class="form-label">
+                                    <i class="fas fa-tags me-1"></i>Sale Price *
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" class="form-control" id="salePrice" name="sale_price" 
+                                           step="0.01" min="0" required>
+                                </div>
+                                <div class="invalid-feedback">
+                                    Please enter a valid sale price.
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="salePlatform" class="form-label">
+                                    <i class="fas fa-store me-1"></i>Sales Platform *
+                                </label>
+                                <select class="form-control" id="salePlatform" name="sales_platform" required>
+                                    <option value="">Choose platform...</option>
+                                    <option value="Amazon">Amazon</option>
+                                    <option value="Flipkart">Flipkart</option>
+                                    <option value="Meesho">Meesho</option>
+                                    <option value="eBay">eBay</option>
+                                    <option value="Shopify">Shopify</option>
+                                    <option value="WooCommerce">WooCommerce</option>
+                                    <option value="Direct">Direct Sale</option>
+                                    <option value="Offline">Offline Store</option>
+                                    <option value="WhatsApp">WhatsApp Business</option>
+                                    <option value="Instagram">Instagram</option>
+                                    <option value="Facebook">Facebook Marketplace</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                                <div class="invalid-feedback">
+                                    Please select a sales platform.
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="saleSlip" class="form-label">
+                                    <i class="fas fa-upload me-1"></i>Upload Sale Slip (Optional)
+                                </label>
+                                <input type="file" class="form-control" id="saleSlip" name="slip" 
+                                       accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                                <div class="form-text">
+                                    Upload receipt, invoice, or payment confirmation (PDF, JPG, PNG, DOC)
+                                </div>
+                                <div class="mt-2" id="uploadedFileInfo" style="display: none;">
+                                    <div class="alert alert-success">
+                                        <i class="fas fa-check-circle me-1"></i>
+                                        <span id="fileName"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="alert alert-success" id="saleTotal" style="display: none;">
+                                <strong>Total Amount:</strong> $<span id="totalAmount">0.00</span>
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-success" id="recordSaleBtn">
+                                    <i class="fas fa-shopping-cart me-1"></i>Record Sale
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sales Summary -->
+            <div class="col-lg-8">
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="card border-left-success shadow h-100 py-2">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                            Today's Sales
+                                        </div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="todaySales">0</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-calendar-day fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="card border-left-info shadow h-100 py-2">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                            Today's Revenue
+                                        </div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="todayRevenue">$0.00</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="card border-left-primary shadow h-100 py-2">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                            Today's Profit
+                                        </div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="todayProfit">$0.00</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sales History -->
+                <div class="card shadow">
+                    <div class="card-header py-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="m-0 font-weight-bold text-primary">
+                                <i class="fas fa-history me-2"></i>Recent Sales
+                            </h6>
+                            <div>
+                                <select class="form-select form-select-sm" id="salesFilter" style="width: auto;">
+                                    <option value="all">All Sales</option>
+                                    <option value="today">Today</option>
+                                    <option value="week">This Week</option>
+                                    <option value="month">This Month</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="salesList">
+                            <div class="text-center py-3">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div class="modal fade" id="saleSuccessModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-check-circle me-2"></i>Sale Recorded!
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-success">
+                        <h6>Sale Details:</h6>
+                        <div id="saleDetails"></div>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-primary" onclick="window.location.href='products.html'">
+                            <i class="fas fa-boxes me-1"></i>View Products
+                        </button>
+                        <button type="button" class="btn btn-success" onclick="recordAnotherSale()">
+                            <i class="fas fa-plus me-1"></i>Record Another Sale
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/sales.js"></script>
+</body>
+</html>

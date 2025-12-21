@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Work Tracker - Mobile Cover Inventory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="index.html">
+                <i class="fas fa-mobile-alt me-2"></i>
+                Mobile Cover Inventory
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.html">
+                            <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="products.html">
+                            <i class="fas fa-boxes me-1"></i>Products
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="add-product.html">
+                            <i class="fas fa-plus me-1"></i>Add Product
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="sales.html">
+                            <i class="fas fa-shopping-cart me-1"></i>Sales
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="reports.html">
+                            <i class="fas fa-chart-bar me-1"></i>Reports
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="employees.html">
+                            <i class="fas fa-users me-1"></i>Employees
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="task-assignment.html">
+                            <i class="fas fa-tasks me-1"></i>Task Assignment
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="employee-dashboard.html">
+                            <i class="fas fa-chart-line me-1"></i>Employee Analytics
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="work-tracker.html">
+                            <i class="fas fa-clock me-1"></i>Work Tracker
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- Page Header -->
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h1 class="page-title">
+                            <i class="fas fa-clock me-2"></i>Work Tracker
+                        </h1>
+                        <p class="text-muted">Track daily activities, time spent, and work progress</p>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <select class="form-select" id="employeeSelect" style="width: 200px;">
+                            <option value="">Select Employee</option>
+                        </select>
+                        <input type="date" class="form-control" id="activityDate" style="width: 150px;">
+                        <button type="button" class="btn btn-primary" onclick="workTrackerManager.loadActivities()">
+                            <i class="fas fa-refresh me-2"></i>Load
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Today's Summary -->
+        <div class="row mb-4">
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card border-left-primary shadow h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                    Total Hours Today
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800" id="total-hours-today">0h</div>
+                                <div class="text-xs text-muted">Hours logged</div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-clock fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card border-left-success shadow h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                    Activities Today
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800" id="activities-today">0</div>
+                                <div class="text-xs text-muted">Tasks worked on</div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-tasks fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card border-left-info shadow h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                    Tasks Completed
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800" id="tasks-completed">0</div>
+                                <div class="text-xs text-muted">Finished today</div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card border-left-warning shadow h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                    Avg Hours/Task
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800" id="avg-hours-task">0h</div>
+                                <div class="text-xs text-muted">Efficiency metric</div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-stopwatch fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Log Activity -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">
+                            <i class="fas fa-plus me-2"></i>Quick Activity Log
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <form id="quickActivityForm">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="quickEmployee" class="form-label">Employee *</label>
+                                        <select class="form-select" id="quickEmployee" required>
+                                            <option value="">Select Employee</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="quickTask" class="form-label">Task</label>
+                                        <select class="form-select" id="quickTask">
+                                            <option value="">Select Task (Optional)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="mb-3">
+                                        <label for="quickHours" class="form-label">Hours *</label>
+                                        <input type="number" class="form-control" id="quickHours" step="0.5" min="0" placeholder="0.5" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="mb-3">
+                                        <label for="quickStatus" class="form-label">Status</label>
+                                        <select class="form-select" id="quickStatus">
+                                            <option value="">No change</option>
+                                            <option value="pending">Pending</option>
+                                            <option value="in_progress">In Progress</option>
+                                            <option value="completed">Completed</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="mb-3">
+                                        <label class="form-label">&nbsp;</label>
+                                        <button type="submit" class="btn btn-success w-100">
+                                            <i class="fas fa-plus me-2"></i>Log Activity
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="mb-3">
+                                        <label for="quickDescription" class="form-label">Activity Description *</label>
+                                        <textarea class="form-control" id="quickDescription" rows="2" placeholder="Describe what was accomplished..." required></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Timeline -->
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card shadow">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">
+                            <i class="fas fa-list me-2"></i>Activity Timeline
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="timeline" id="activityTimeline">
+                            <div class="text-center p-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="col-lg-4">
+                <!-- Active Tasks -->
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">
+                            <i class="fas fa-tasks me-2"></i>My Active Tasks
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="activeTasksList">
+                            <div class="text-center p-3">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Weekly Summary -->
+                <div class="card shadow">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">
+                            <i class="fas fa-chart-line me-2"></i>This Week Summary
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <h4 class="text-primary" id="weekly-hours">0h</h4>
+                                <small class="text-muted">Total Hours</small>
+                            </div>
+                            <div class="col-6">
+                                <h4 class="text-success" id="weekly-activities">0</h4>
+                                <small class="text-muted">Activities</small>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="progress mb-2">
+                            <div class="progress-bar bg-info" id="weekly-progress" style="width: 0%"></div>
+                        </div>
+                        <small class="text-muted text-center d-block">
+                            Weekly Goal: 40h
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Activity Modal -->
+    <div class="modal fade" id="activityDetailsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-info-circle me-2"></i>Activity Details
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="activityDetailsContent">
+                    <!-- Activity details will be loaded here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-warning" id="editActivityBtn">
+                        <i class="fas fa-edit me-2"></i>Edit Activity
+                    </button>
+                    <button type="button" class="btn btn-danger" id="deleteActivityBtn">
+                        <i class="fas fa-trash me-2"></i>Delete Activity
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Activity Modal -->
+    <div class="modal fade" id="editActivityModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit me-2"></i>Edit Activity
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="editActivityForm">
+                    <div class="modal-body">
+                        <input type="hidden" id="editActivityId">
+                        <div class="mb-3">
+                            <label for="editActivityDate" class="form-label">Date *</label>
+                            <input type="date" class="form-control" id="editActivityDate" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editActivityHours" class="form-label">Hours Worked</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="editActivityHours" step="0.5" min="0">
+                                <span class="input-group-text">hours</span>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editActivityStatus" class="form-label">Status Update</label>
+                            <select class="form-select" id="editActivityStatus">
+                                <option value="">No change</option>
+                                <option value="pending">Pending</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="completed">Completed</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editActivityDescription" class="form-label">Activity Description *</label>
+                            <textarea class="form-control" id="editActivityDescription" rows="3" required></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Update Activity
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+    <script src="js/work-tracker.js"></script>
+</body>
+</html>
+
