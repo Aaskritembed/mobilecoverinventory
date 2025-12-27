@@ -356,6 +356,24 @@ const createSecureUpload = (options = {}) => {
     });
 };
 
+// CSRF Protection Middleware
+const csrf = require('csurf');
+const crypto = require('crypto');
+
+// CSRF Protection setup
+const csrfProtection = csrf({
+    cookie: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict'
+    }
+});
+
+// Generate CSRF token
+const generateCSRFToken = () => {
+    return crypto.randomBytes(32).toString('hex');
+};
+
 // Security middleware
 const securityMiddleware = (req, res, next) => {
     // Remove potentially dangerous headers
@@ -366,33 +384,38 @@ const securityMiddleware = (req, res, next) => {
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('X-XSS-Protection', '1; mode=block');
     
-    // Rate limiting (basic implementation)
-    const now = Date.now();
-    const windowMs = 15 * 60 * 1000; // 15 minutes
-    const maxRequests = 100; // Max requests per window
-    
-    if (!req.rateLimit) {
-        req.rateLimit = {
-            requests: [],
-            windowStart: now
-        };
+    // Add HSTS header for production
+    if (process.env.NODE_ENV === 'production') {
+        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
     
-    // Clean old requests
-    req.rateLimit.requests = req.rateLimit.requests.filter(
-        timestamp => now - timestamp < windowMs
-    );
+    // Remove server information
+    res.setHeader('Server', 'Inventory-Server');
     
-    // Check rate limit
-    if (req.rateLimit.requests.length >= maxRequests) {
-        return res.status(429).json({
-            error: 'Too many requests',
-            message: 'Please try again later'
-        });
-    }
+    next();
+};
+
+// Input sanitization middleware
+const sanitizeInput = (req, res, next) => {
+    // Recursively sanitize object properties
+    const sanitize = (obj) => {
+        if (typeof obj === 'string') {
+            return obj.trim().replace(/[<>]/g, '');
+        } else if (Array.isArray(obj)) {
+            return obj.map(sanitize);
+        } else if (obj !== null && typeof obj === 'object') {
+            const sanitized = {};
+            for (const key in obj) {
+                sanitized[key] = sanitize(obj[key]);
+            }
+            return sanitized;
+        }
+        return obj;
+    };
     
-    // Add current request
-    req.rateLimit.requests.push(now);
+    req.body = sanitize(req.body);
+    req.query = sanitize(req.query);
+    req.params = sanitize(req.params);
     
     next();
 };
@@ -461,7 +484,10 @@ module.exports = {
     validatePhoneModel,
     validateColor,
     createSecureUpload,
+    csrfProtection,
+    generateCSRFToken,
     securityMiddleware,
+    sanitizeInput,
     sanitizeSqlInput,
     createParameterizedQuery,
     errorHandler

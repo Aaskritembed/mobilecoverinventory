@@ -265,7 +265,7 @@ class ProductManager {
         submitBtn.disabled = true;
 
         try {
-            const response = await fetch('/api/models', {
+            const response = await fetch('/api/products/phone-models', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -308,9 +308,10 @@ class ProductManager {
 
     async loadColors() {
         try {
-            const response = await fetch(`${this.apiBase}/colors`);
+            const response = await fetch(`${this.apiBase}/products/colors/all`);
             if (response.ok) {
-                const colors = await response.json();
+                const result = await response.json();
+                const colors = result.data || [];
                 this.populateColorSelect(colors);
             } else {
                 // Handle silently for colors
@@ -383,7 +384,7 @@ class ProductManager {
         submitBtn.disabled = true;
 
         try {
-            const response = await fetch('/api/colors', {
+            const response = await fetch('/api/products/colors', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -445,9 +446,10 @@ class ProductManager {
 
     async loadPhoneModels(brand) {
         try {
-            const response = await fetch(`${this.apiBase}/models/${encodeURIComponent(brand)}`);
+            const response = await fetch(`${this.apiBase}/phone-models/${encodeURIComponent(brand)}`);
             if (response.ok) {
-                const models = await response.json();
+                const result = await response.json();
+                const models = result.data || [];
                 this.populateModelSelect(models);
             } else {
                 // Handle silently for models
@@ -562,7 +564,8 @@ class ProductManager {
         try {
             const response = await fetch(`${this.apiBase}/products`);
             if (response.ok) {
-                const products = await response.json();
+                const result = await response.json();
+                const products = result.data || [];
                 this.displayRecentProducts(products.slice(0, 5));
             }
         } catch (error) {
@@ -619,7 +622,8 @@ class ProductManager {
         try {
             const response = await fetch(`${this.apiBase}/products`);
             if (response.ok) {
-                this.products = await response.json();
+                const result = await response.json();
+                this.products = result.data || [];
                 this.filteredProducts = [...this.products];
                 this.displayProducts();
                 this.updateTotalCount();

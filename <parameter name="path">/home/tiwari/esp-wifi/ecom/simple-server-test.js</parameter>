@@ -1,0 +1,81 @@
+<parameter name="content">#!/usr/bin/env node
+
+// Simple server test script
+const http = require('http');
+
+console.log('🧪 Testing Mobile Cover Inventory System...\n');
+
+function testEndpoint(name, port, path) {
+    return new Promise((resolve) => {
+        const options = {
+            hostname: 'localhost',
+            port: port,
+            path: path,
+            method: 'GET',
+            timeout: 5000
+        };
+
+        const req = http.request(options, (res) => {
+            let data = '';
+            
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+            
+            res.on('end', () => {
+                if (res.statusCode === 200) {
+                    console.log(`✅ ${name}: ${res.statusCode} OK`);
+                    resolve(true);
+                } else {
+                    console.log(`⚠️  ${name}: ${res.statusCode}`);
+                    resolve(false);
+                }
+            });
+        });
+
+        req.on('error', (err) => {
+            console.log(`❌ ${name}: Connection failed`);
+            resolve(false);
+        });
+
+        req.on('timeout', () => {
+            console.log(`⏰ ${name}: Timeout`);
+            req.destroy();
+            resolve(false);
+        });
+
+        req.end();
+    });
+}
+
+async function runTests() {
+    const tests = [
+        { name: 'Main App', path: '/' },
+        { name: 'Health Check', path: '/api/health' },
+        { name: 'Dashboard', path: '/api/dashboard' },
+        { name: 'Products API', path: '/api/products' },
+        { name: 'Sales API', path: '/api/sales' }
+    ];
+
+    let passed = 0;
+    let total = tests.length;
+
+    for (const test of tests) {
+        const result = await testEndpoint(test.name, 3000, test.path);
+        if (result) passed++;
+    }
+
+    console.log(`\n📊 Results: ${passed}/${total} tests passed`);
+
+    if (passed === total) {
+        console.log('🎉 All systems operational!');
+        console.log('🌐 Access the system at: http://localhost:3000');
+    } else if (passed > 0) {
+        console.log('⚠️  Some systems are working. Check server logs.');
+    } else {
+        console.log('❌ Server may not be running. Try: node server.js');
+    }
+}
+
+runTests().catch(console.error);
+</parameter>
